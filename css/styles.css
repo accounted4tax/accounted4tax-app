@@ -417,6 +417,52 @@ a:hover { text-decoration: underline; }
 .form-field-checkbox { flex-direction: row; align-items: center; gap: 8px; }
 .form-field-checkbox input { width: auto; }
 
+/* ---------- Modal ---------- */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 33, 61, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 100;
+}
+
+.modal {
+  background: var(--surface);
+  border-radius: 10px;
+  padding: 24px;
+  width: 100%;
+  max-width: 560px;
+  max-height: 88vh;
+  overflow-y: auto;
+  box-shadow: var(--shadow-md);
+}
+
+.modal h3 { font-size: 17px; margin-bottom: 16px; }
+.modal #service-form, .modal #task-form, .modal #deadline-form, .modal #assign-service-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 6px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.panel-header-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
+
 /* ---------- Icons ---------- */
 
 .icon { flex-shrink: 0; }

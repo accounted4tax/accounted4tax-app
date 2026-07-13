@@ -224,11 +224,19 @@ const ClientsPage = {
           <textarea name="notes_general" class="input textarea" rows="4">${client.notes_general || ''}</textarea>
         </div>
       </form>
+
+      ${!isNew ? `
+        <div class="detail-form" style="margin-top:20px;">
+          <div class="detail-form-header"><h2 style="font-size:16px;">Assigned services</h2></div>
+          <div class="form-section" id="client-services-panel"></div>
+        </div>
+      ` : ''}
     `;
 
     document.getElementById('client-form').addEventListener('submit', (e) => this.handleSave(e, isNew, params.id));
     if (!isNew) {
       document.getElementById('delete-client-btn').addEventListener('click', () => this.handleDelete(params.id, client.full_name));
+      ClientServicesPanel.render(params.id, document.getElementById('client-services-panel'));
     }
   },
 

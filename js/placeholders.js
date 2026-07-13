@@ -13,9 +13,6 @@ function renderComingSoon(title, description) {
   `;
 }
 
-const ServicesPage = { render() { renderComingSoon('Services', 'Your services catalogue and per-client service assignments will live here.'); } };
-const TasksPage = { render() { renderComingSoon('Tasks', 'Task pipelines generated from your task templates will live here.'); } };
-const DeadlinesPage = { render() { renderComingSoon('Deadlines', 'MTD, Self Assessment, and Companies House deadlines will be tracked here.'); } };
 const CorrespondencePage = { render() { renderComingSoon('Correspondence', 'Client email history and templated correspondence will live here.'); } };
 const LoesPage = { render() { renderComingSoon('Letters of Engagement', 'LOE generation and signing status will live here.'); } };
 const InvoicesPage = { render() { renderComingSoon('Invoices', 'Invoice tracking and FreeAgent references will live here.'); } };
