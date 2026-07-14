@@ -15,10 +15,10 @@ const DashboardPage = {
         correspondenceUnreadRes
       ] = await Promise.all([
         sb.from('clients').select('id', { count: 'exact', head: true }).eq('status', 'active'),
-        sb.from('tasks').select('id', { count: 'exact', head: true }).neq('status', 'complete'),
-        sb.from('tasks').select('id', { count: 'exact', head: true }).neq('status', 'complete').lt('due_date', new Date().toISOString().slice(0, 10)),
+        sb.from('tasks').select('id', { count: 'exact', head: true }).neq('status', 'completed'),
+        sb.from('tasks').select('id', { count: 'exact', head: true }).neq('status', 'completed').lt('due_date', new Date().toISOString().slice(0, 10)),
         sb.from('invoices').select('id, amount', { count: 'exact' }).neq('status', 'paid'),
-        sb.from('mtd_submissions').select('id, client_id, quarter_label, deadline, clients(full_name)').neq('status', 'submitted').order('deadline', { ascending: true }).limit(6),
+        sb.from('mtd_submissions').select('id, client_id, quarter_label, deadline, clients(full_name)').not('status', 'in', '(submitted,final_declaration)').order('deadline', { ascending: true }).limit(6),
         sb.from('correspondence').select('id', { count: 'exact', head: true }).eq('is_read', false)
       ]);
 

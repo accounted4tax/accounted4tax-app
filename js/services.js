@@ -1,6 +1,13 @@
 // Accounted4Tax Practice Manager — Services catalogue
 
-const BILLING_TYPES = ['one_off', 'monthly', 'quarterly', 'annual'];
+const SERVICE_CLIENT_TYPES = [
+  { value: 'sole_trader', label: 'Sole trader' },
+  { value: 'ltd', label: 'Limited company' },
+  { value: 'landlord', label: 'Landlord' },
+  { value: 'both', label: 'Both' }
+];
+
+const BILLING_TYPES = ['one_off', 'monthly', 'quarterly', 'annual', 'on_completion'];
 
 const ServicesPage = {
   allServices: [],
@@ -57,7 +64,7 @@ const ServicesPage = {
                 <div>${s.name}</div>
                 ${s.description ? `<div class="muted-line" style="font-size:12px;">${s.description}</div>` : ''}
               </td>
-              <td>${clientTypeLabel(s.client_type)}</td>
+              <td>${(SERVICE_CLIENT_TYPES.find(t => t.value === s.client_type) || {}).label || s.client_type || '—'}</td>
               <td>${s.price_label || Fmt.money(s.default_price)}</td>
               <td class="muted-line">${s.billing_type || '—'}</td>
               <td>${s.is_recurring ? icon('check-square', 15) : '—'}</td>
@@ -97,7 +104,7 @@ const ServicesPage = {
           <div class="form-grid">
             <label class="form-field"><span>Client type</span>
               <select class="input input-select" name="client_type">
-                ${CLIENT_TYPES.map(t => `<option value="${t.value}" ${s.client_type === t.value ? 'selected' : ''}>${t.label}</option>`).join('')}
+                ${SERVICE_CLIENT_TYPES.map(t => `<option value="${t.value}" ${s.client_type === t.value ? 'selected' : ''}>${t.label}</option>`).join('')}
               </select>
             </label>
             <label class="form-field"><span>Default price (£)</span><input class="input" type="number" step="0.01" name="default_price" value="${s.default_price ?? ''}" /></label>

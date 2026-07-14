@@ -1,6 +1,6 @@
 // Accounted4Tax Practice Manager — Assigned services panel (shown on client detail page)
 
-const CLIENT_SERVICE_STATUSES = ['pending', 'active', 'completed', 'cancelled'];
+const CLIENT_SERVICE_STATUSES = ['active', 'paused', 'completed', 'cancelled'];
 
 const ClientServicesPanel = {
   async render(clientId, containerEl) {

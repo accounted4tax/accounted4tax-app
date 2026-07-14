@@ -1,9 +1,9 @@
 // Accounted4Tax Practice Manager — Tasks
 
-const TASK_STATUSES = ['pending', 'in_progress', 'complete', 'blocked'];
+const TASK_STATUSES = ['not_started', 'in_progress', 'completed', 'blocked'];
 
 function taskStatusPill(status) {
-  const cls = { complete: 'pill-green', in_progress: 'pill-amber', blocked: 'pill-red', pending: 'pill-grey' }[status] || 'pill-grey';
+  const cls = { completed: 'pill-green', in_progress: 'pill-amber', blocked: 'pill-red', not_started: 'pill-grey' }[status] || 'pill-grey';
   return `<span class="pill ${cls}">${(status || '').replace('_', ' ')}</span>`;
 }
 
@@ -81,9 +81,9 @@ const TasksPage = {
               </td>
               <td class="muted-line">${t.clients ? t.clients.full_name : '—'}</td>
               <td>${taskStatusPill(t.status)}</td>
-              <td class="${t.due_date && t.due_date < today && t.status !== 'complete' ? 'pill-red' : 'muted-line'}">${Fmt.date(t.due_date)}</td>
+              <td class="${t.due_date && t.due_date < today && t.status !== 'completed' ? 'pill-red' : 'muted-line'}">${Fmt.date(t.due_date)}</td>
               <td class="align-right">
-                ${t.status !== 'complete' ? `<button class="btn btn-secondary btn-sm" data-complete="${t.id}">Mark complete</button>` : ''}
+                ${t.status !== 'completed' ? `<button class="btn btn-secondary btn-sm" data-complete="${t.id}">Mark complete</button>` : ''}
                 <button class="btn btn-secondary btn-sm" data-edit="${t.id}">Edit</button>
                 <button class="btn btn-danger-outline btn-sm" data-delete="${t.id}">Delete</button>
               </td>
@@ -99,7 +99,7 @@ const TasksPage = {
 
   openForm(task) {
     const isNew = !task;
-    const t = task || { client_id: '', title: '', description: '', status: 'pending', due_date: '', tax_year: '', notes: '' };
+    const t = task || { client_id: '', title: '', description: '', status: 'not_started', due_date: '', tax_year: '', notes: '' };
 
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
@@ -148,7 +148,7 @@ const TasksPage = {
         tax_year: fd.get('tax_year') || null,
         notes: fd.get('notes') || null
       };
-      if (payload.status === 'complete') payload.completed_at = new Date().toISOString();
+      if (payload.status === 'completed') payload.completed_at = new Date().toISOString();
       try {
         if (isNew) {
           const { error } = await sb.from('tasks').insert(payload);
@@ -166,7 +166,7 @@ const TasksPage = {
   },
 
   async handleComplete(id) {
-    const { error } = await sb.from('tasks').update({ status: 'complete', completed_at: new Date().toISOString() }).eq('id', id);
+    const { error } = await sb.from('tasks').update({ status: 'completed', completed_at: new Date().toISOString() }).eq('id', id);
     if (error) { alert(`Could not update task: ${error.message}`); return; }
     this.render();
   },

@@ -2,16 +2,14 @@
 
 const CLIENT_TYPES = [
   { value: 'sole_trader', label: 'Sole trader' },
-  { value: 'limited_company', label: 'Limited company' },
-  { value: 'landlord', label: 'Landlord' },
-  { value: 'partnership', label: 'Partnership' }
+  { value: 'ltd', label: 'Limited company' },
+  { value: 'landlord', label: 'Landlord' }
 ];
 
 const CLIENT_STATUSES = [
-  { value: 'prospect', label: 'Prospect' },
   { value: 'onboarding', label: 'Onboarding' },
   { value: 'active', label: 'Active' },
-  { value: 'inactive', label: 'Inactive' }
+  { value: 'archived', label: 'Archived' }
 ];
 
 function clientTypeLabel(v) {
@@ -19,7 +17,7 @@ function clientTypeLabel(v) {
 }
 
 function statusPill(status) {
-  const cls = { active: 'pill-green', onboarding: 'pill-amber', prospect: 'pill-grey', inactive: 'pill-grey' }[status] || 'pill-grey';
+  const cls = { active: 'pill-green', onboarding: 'pill-amber', archived: 'pill-grey' }[status] || 'pill-grey';
   const label = (CLIENT_STATUSES.find(s => s.value === status) || {}).label || status || '—';
   return `<span class="pill ${cls}">${label}</span>`;
 }
@@ -139,7 +137,7 @@ const ClientsPage = {
     const isNew = params.id === 'new';
 
     let client = {
-      full_name: '', client_type: 'sole_trader', status: 'prospect', email: '', phone: '',
+      full_name: '', client_type: 'sole_trader', status: 'onboarding', email: '', phone: '',
       address: '', date_of_birth: '', ni_number: '', utr: '', company_name: '', crn: '',
       ct_utr: '', paye_ref: '', accounts_office_ref: '', vat_number: '', date_of_incorporation: '',
       year_end_date: '', confirmation_statement_date: '', client_since: '', industry: '',

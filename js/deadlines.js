@@ -1,9 +1,9 @@
 // Accounted4Tax Practice Manager — Deadlines (MTD submissions)
 
-const MTD_STATUSES = ['not_started', 'in_progress', 'submitted', 'late'];
+const MTD_STATUSES = ['pending', 'data_requested', 'data_received', 'submitted', 'final_declaration'];
 
 function deadlineStatusPill(status) {
-  const cls = { submitted: 'pill-green', in_progress: 'pill-amber', late: 'pill-red', not_started: 'pill-grey' }[status] || 'pill-grey';
+  const cls = { submitted: 'pill-green', final_declaration: 'pill-green', data_received: 'pill-amber', data_requested: 'pill-amber', pending: 'pill-grey' }[status] || 'pill-grey';
   return `<span class="pill ${cls}">${(status || '').replace('_', ' ')}</span>`;
 }
 
@@ -67,7 +67,7 @@ const DeadlinesPage = {
             <tr>
               <td>${d.clients ? d.clients.full_name : '—'}</td>
               <td class="muted-line">${d.quarter_label || `Q${d.quarter}`} · ${d.tax_year || ''}</td>
-              <td class="${d.deadline && d.deadline < today && d.status !== 'submitted' ? 'pill-red' : 'muted-line'}">${Fmt.date(d.deadline)}</td>
+              <td class="${d.deadline && d.deadline < today && !['submitted', 'final_declaration'].includes(d.status) ? 'pill-red' : 'muted-line'}">${Fmt.date(d.deadline)}</td>
               <td>${deadlineStatusPill(d.status)}</td>
               <td class="muted-line">${Fmt.money(d.total_income)} / ${Fmt.money(d.total_expenses)}</td>
               <td class="align-right">
@@ -87,7 +87,7 @@ const DeadlinesPage = {
     const isNew = !deadline;
     const d = deadline || {
       client_id: '', tax_year: '', quarter: '', quarter_label: '', period_start: '', period_end: '',
-      deadline: '', status: 'not_started', total_income: '', total_expenses: '', hmrc_ref: '', software: '', notes: ''
+      deadline: '', status: 'pending', total_income: '', total_expenses: '', hmrc_ref: '', software: '', notes: ''
     };
 
     const overlay = document.createElement('div');
