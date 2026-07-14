@@ -2,6 +2,8 @@
 
 Router.register('/dashboard', () => DashboardPage.render());
 Router.register('/clients', () => ClientsPage.render());
+Router.register('/clients/new', () => ClientsPage.renderEditForm({ id: 'new' }));
+Router.register('/clients/:id/edit', (params) => ClientsPage.renderEditForm(params));
 Router.register('/clients/:id', (params) => ClientsPage.renderDetail(params));
 Router.register('/services', () => ServicesPage.render());
 Router.register('/tasks', () => TasksPage.render());

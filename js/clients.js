@@ -134,6 +134,59 @@ const ClientsPage = {
 
   async renderDetail(params) {
     const el = App.content();
+    el.innerHTML = `<div class="page-loading">Loading client…</div>`;
+
+    const { data: client, error } = await sb.from('clients').select('*').eq('id', params.id).single();
+    if (error) {
+      el.innerHTML = `<div class="page-error">Could not load client: ${error.message}</div>`;
+      return;
+    }
+
+    el.innerHTML = `
+      <div class="page-back"><a href="#/clients">&larr; Back to clients</a></div>
+
+      <div class="client-overview-header">
+        <div>
+          <h2 style="font-family:'Fraunces',serif;font-size:22px;margin:0;">${client.full_name}</h2>
+          <div class="muted-line" style="font-size:13px;margin-top:2px;">${clientTypeLabel(client.client_type)} &middot; ${statusPill(client.status)}</div>
+        </div>
+        <button id="edit-client-btn" class="btn btn-primary">Edit client</button>
+      </div>
+
+      <div class="detail-form" style="margin-bottom:16px;">
+        <div class="form-section" style="border-bottom:none;">
+          <h3>Client details</h3>
+          <div class="form-grid">
+            <div><span class="muted-line" style="font-size:12px;">Email</span><br>${client.email || '—'}</div>
+            <div><span class="muted-line" style="font-size:12px;">Phone</span><br>${client.phone || '—'}</div>
+            <div><span class="muted-line" style="font-size:12px;">NI number</span><br>${client.ni_number || '—'}</div>
+            <div><span class="muted-line" style="font-size:12px;">UTR</span><br>${client.utr || '—'}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="client-panel-grid">
+        <div class="detail-form"><div class="detail-form-header"><h2 style="font-size:15px;">Services</h2></div><div class="form-section" id="panel-services"></div></div>
+        <div class="detail-form"><div class="detail-form-header"><h2 style="font-size:15px;">Tasks</h2></div><div class="form-section" id="panel-tasks"></div></div>
+        <div class="detail-form"><div class="detail-form-header"><h2 style="font-size:15px;">Deadlines</h2></div><div class="form-section" id="panel-deadlines"></div></div>
+        <div class="detail-form"><div class="detail-form-header"><h2 style="font-size:15px;">Notes</h2></div><div class="form-section" id="panel-notes"></div></div>
+        <div class="detail-form" style="grid-column:1 / -1;"><div class="detail-form-header"><h2 style="font-size:15px;">Correspondence</h2></div><div class="form-section" id="panel-correspondence"></div></div>
+        <div class="detail-form" style="grid-column:1 / -1;"><div class="detail-form-header"><h2 style="font-size:15px;">History</h2></div><div class="form-section" id="panel-history"></div></div>
+      </div>
+    `;
+
+    document.getElementById('edit-client-btn').addEventListener('click', () => Router.go(`/clients/${params.id}/edit`));
+
+    ClientServicesPanel.render(params.id, document.getElementById('panel-services'), { limit: 5 });
+    ClientTasksPanel.render(params.id, document.getElementById('panel-tasks'), { limit: 5 });
+    ClientDeadlinesPanel.render(params.id, document.getElementById('panel-deadlines'), { limit: 5 });
+    ClientNotesPanel.render(params.id, document.getElementById('panel-notes'), { limit: 5 });
+    ClientCorrespondencePanel.render(params.id, document.getElementById('panel-correspondence'), { limit: 5 });
+    ClientHistoryPanel.render(params.id, document.getElementById('panel-history'));
+  },
+
+  async renderEditForm(params) {
+    const el = App.content();
     const isNew = params.id === 'new';
 
     let client = {
@@ -157,11 +210,11 @@ const ClientsPage = {
 
     el.innerHTML = `
       <div class="page-back">
-        <a href="#/clients">&larr; Back to clients</a>
+        <a href="#${isNew ? '/clients' : `/clients/${params.id}`}">&larr; ${isNew ? 'Back to clients' : 'Back to client'}</a>
       </div>
       <form id="client-form" class="detail-form">
         <div class="detail-form-header">
-          <h2>${isNew ? 'New client' : client.full_name}</h2>
+          <h2>${isNew ? 'New client' : `Edit ${client.full_name}`}</h2>
           <div class="detail-form-actions">
             ${!isNew ? `<button type="button" id="delete-client-btn" class="btn btn-danger-outline">Delete</button>` : ''}
             <button type="submit" class="btn btn-primary">${isNew ? 'Create client' : 'Save changes'}</button>
@@ -222,19 +275,11 @@ const ClientsPage = {
           <textarea name="notes_general" class="input textarea" rows="4">${client.notes_general || ''}</textarea>
         </div>
       </form>
-
-      ${!isNew ? `
-        <div class="detail-form" style="margin-top:20px;">
-          <div class="detail-form-header"><h2 style="font-size:16px;">Assigned services</h2></div>
-          <div class="form-section" id="client-services-panel"></div>
-        </div>
-      ` : ''}
     `;
 
     document.getElementById('client-form').addEventListener('submit', (e) => this.handleSave(e, isNew, params.id));
     if (!isNew) {
       document.getElementById('delete-client-btn').addEventListener('click', () => this.handleDelete(params.id, client.full_name));
-      ClientServicesPanel.render(params.id, document.getElementById('client-services-panel'));
     }
   },
 
@@ -290,7 +335,7 @@ const ClientsPage = {
       } else {
         const { error } = await sb.from('clients').update(payload).eq('id', id);
         if (error) throw error;
-        Router.go('/clients');
+        Router.go(`/clients/${id}`);
       }
     } catch (err) {
       alert(`Could not save client: ${err.message}`);

@@ -11,14 +11,16 @@ const DeadlinesPage = {
   allDeadlines: [],
   allClients: [],
   filterStatus: '',
+  filterClient: '',
 
   async render() {
     const el = App.content();
     el.innerHTML = `<div class="page-loading">Loading deadlines…</div>`;
 
-    const [deadlinesRes, clientsRes] = await Promise.all([
+    const [deadlinesRes, clientsRes, clientServicesRes] = await Promise.all([
       sb.from('mtd_submissions').select('*, clients(full_name)').order('deadline', { ascending: true, nullsFirst: false }),
-      sb.from('clients').select('id, full_name').order('full_name', { ascending: true })
+      sb.from('clients').select('id, full_name').order('full_name', { ascending: true }),
+      sb.from('client_services').select('id, client_id, services_catalogue(name)')
     ]);
 
     if (deadlinesRes.error) {
@@ -27,6 +29,7 @@ const DeadlinesPage = {
     }
     this.allDeadlines = deadlinesRes.data || [];
     this.allClients = clientsRes.data || [];
+    this.allClientServices = clientServicesRes.data || [];
     this.renderList();
   },
 
@@ -38,17 +41,26 @@ const DeadlinesPage = {
           <option value="">All statuses</option>
           ${MTD_STATUSES.map(s => `<option value="${s}" ${this.filterStatus === s ? 'selected' : ''}>${s.replace('_', ' ')}</option>`).join('')}
         </select>
+        <select id="filter-client" class="input input-select">
+          <option value="">All clients</option>
+          ${this.allClients.map(c => `<option value="${c.id}" ${this.filterClient === c.id ? 'selected' : ''}>${c.full_name}</option>`).join('')}
+        </select>
         <button id="add-deadline-btn" class="btn btn-primary">+ Add deadline</button>
       </div>
       <div id="deadlines-table-wrap"></div>
     `;
     document.getElementById('filter-status').addEventListener('change', (e) => { this.filterStatus = e.target.value; this.renderTable(); });
+    document.getElementById('filter-client').addEventListener('change', (e) => { this.filterClient = e.target.value; this.renderTable(); });
     document.getElementById('add-deadline-btn').addEventListener('click', () => this.openForm(null));
     this.renderTable();
   },
 
   filteredDeadlines() {
-    return this.allDeadlines.filter(d => !this.filterStatus || d.status === this.filterStatus);
+    return this.allDeadlines.filter(d => {
+      if (this.filterStatus && d.status !== this.filterStatus) return false;
+      if (this.filterClient && d.client_id !== this.filterClient) return false;
+      return true;
+    });
   },
 
   renderTable() {
@@ -86,9 +98,11 @@ const DeadlinesPage = {
   openForm(deadline) {
     const isNew = !deadline;
     const d = deadline || {
-      client_id: '', tax_year: '', quarter: '', quarter_label: '', period_start: '', period_end: '',
+      client_id: '', client_service_id: '', tax_year: '', quarter: '', quarter_label: '', period_start: '', period_end: '',
       deadline: '', status: 'pending', total_income: '', total_expenses: '', hmrc_ref: '', software: '', notes: ''
     };
+
+    const servicesForClient = (clientId) => this.allClientServices.filter(cs => cs.client_id === clientId);
 
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
@@ -100,6 +114,12 @@ const DeadlinesPage = {
             <select class="input input-select" name="client_id" required>
               <option value="">Select a client…</option>
               ${this.allClients.map(c => `<option value="${c.id}" ${d.client_id === c.id ? 'selected' : ''}>${c.full_name}</option>`).join('')}
+            </select>
+          </label>
+          <label class="form-field"><span>Service (optional)</span>
+            <select class="input input-select" name="client_service_id" id="deadline-service-select">
+              <option value="">— Not linked to a specific service —</option>
+              ${servicesForClient(d.client_id).map(cs => `<option value="${cs.id}" ${d.client_service_id === cs.id ? 'selected' : ''}>${cs.services_catalogue ? cs.services_catalogue.name : 'Service'}</option>`).join('')}
             </select>
           </label>
           <div class="form-grid">
@@ -131,11 +151,19 @@ const DeadlinesPage = {
     overlay.querySelector('#modal-cancel').addEventListener('click', () => overlay.remove());
     overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
 
+    overlay.querySelector('[name="client_id"]').addEventListener('change', (e) => {
+      const select = document.getElementById('deadline-service-select');
+      const options = servicesForClient(e.target.value);
+      select.innerHTML = `<option value="">— Not linked to a specific service —</option>` +
+        options.map(cs => `<option value="${cs.id}">${cs.services_catalogue ? cs.services_catalogue.name : 'Service'}</option>`).join('');
+    });
+
     overlay.querySelector('#deadline-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const fd = new FormData(e.target);
       const payload = {
         client_id: fd.get('client_id'),
+        client_service_id: fd.get('client_service_id') || null,
         tax_year: fd.get('tax_year'),
         quarter: Number(fd.get('quarter')),
         quarter_label: fd.get('quarter_label') || null,
