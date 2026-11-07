@@ -86,6 +86,10 @@ const App = {
                 <span>${item.label}</span>
               </a>
             `).join('')}
+            <a href="https://accounted4tax.github.io/a4t-quotes/dashboard.html" class="nav-item" title="Quotes, engagement letters and payments (same login)">
+              ${icon('file-text')}
+              <span>Quotes ↗</span>
+            </a>
           </nav>
           <div class="sidebar-footer">
             <button id="signout-btn" class="nav-item nav-item-muted">
