@@ -256,7 +256,7 @@ const ClientsPage = {
             ${this.field('accounts_office_ref', 'Accounts office reference', client.accounts_office_ref, 'text')}
             ${this.field('vat_number', 'VAT number', client.vat_number, 'text')}
             ${this.field('date_of_incorporation', 'Date of incorporation', client.date_of_incorporation, 'date')}
-            ${this.field('year_end_date', 'Year end date', client.year_end_date, 'text')}
+            ${this.field('year_end_date', 'Year end date', client.year_end_date, 'date')}
             ${this.field('confirmation_statement_date', 'Confirmation statement date', client.confirmation_statement_date, 'date')}
           </div>
         </div>
