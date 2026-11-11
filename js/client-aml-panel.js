@@ -130,12 +130,12 @@ const ClientAmlPanel = {
         <h3>Identity check – ${esc(p.name)}</h3>
         <p class="muted-line" style="font-size:12px;">${esc(AmlRoleLabel[p.role] || p.role)} · received ${Fmt.date(D.request.received_at)}</p>
         <table style="font-size:13px;margin:8px 0;">
-          <tr><td class="muted-line" style="padding-right:10px;">Photo ID</td><td>${esc(s.id_label || '')} – expires ${esc(s.id_expiry ? Fmt.date(s.id_expiry) : '?')}</td></tr>
+          <tr><td class="muted-line" style="padding-right:10px;">Photo ID</td><td>${esc(s.id_label || '')}</td></tr>
           <tr><td class="muted-line" style="padding-right:10px;">Proof of address</td><td>${esc(s.poa_label || '')}${s.poa_date ? ' – dated ' + Fmt.date(s.poa_date) : ''}</td></tr>
           <tr><td class="muted-line" style="padding-right:10px;">Uploaded from</td><td style="font-size:11px;">${esc(s.ip || '')} · ${esc((s.device || '').slice(0, 70))}</td></tr>
         </table>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 12px;">${files || '<p>No files.</p>'}</div>
-        <p style="font-size:12px;">Check: same name on both documents · the selfie matches the photo ID · ID in date · a home address (not a PO box).</p>
+        <p style="font-size:12px;">Check: the ID is in date · same name on both documents · the selfie matches the photo ID · a home address (not a PO box).</p>
         ${done ? `<p><span class="pill pill-green">CDD verified</span> ${p.record ? `Risk ${esc(p.record.risk_rating)} · PEP ${esc(p.record.pep_check)} · sanctions ${esc(p.record.sanctions_check)} · review by ${Fmt.date(p.record.review_date)}` : ''}</p>
           <div class="modal-actions"><button type="button" class="btn btn-secondary" id="modal-cancel">Close</button></div>`
         : `<form id="aml-review">
