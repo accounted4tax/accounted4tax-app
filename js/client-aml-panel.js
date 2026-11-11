@@ -116,58 +116,101 @@ const ClientAmlPanel = {
     let D;
     try { D = await this.call({ action: 'docs', request_id: p.request.id }); } catch (err) { alert(err.message); return; }
     const s = D.request.submitted || {};
-    const label = { photo_id: 'Photo ID', selfie: 'Selfie with ID', proof_of_address: 'Proof of address' };
-    const files = D.docs.map(f => `<div style="border:1px solid var(--border, #E3E6EC);border-radius:8px;padding:6px;width:150px;">
-        <div style="font-size:11px;font-weight:600;margin-bottom:4px;">${label[f.doc_type] || f.doc_type}</div>
-        ${f.url && /^image\/(jpeg|png|webp)$/.test(f.mime || '') ? `<a href="${f.url}" target="_blank" rel="noopener"><img src="${f.url}" alt="" style="width:100%;height:110px;object-fit:cover;border-radius:4px;"></a>`
-          : `<a href="${f.url}" target="_blank" rel="noopener" class="btn btn-secondary btn-sm">Open ${f.mime === 'application/pdf' ? 'PDF' : 'file'}</a>`}
-      </div>`).join('');
     const done = p.request.status === 'verified';
+    const prev = D.request.review || {};
+    const decision = {};   // item → { ok, reason }
+    D.items.forEach(it => {
+      if (it.accepted_earlier) decision[it.item] = { ok: true, locked: true };
+      else if (done && prev[it.item]) decision[it.item] = { ...prev[it.item], locked: true };
+    });
+    const what = { photo_id: s.id_label, proof_of_address: (s.poa_label || '') + (s.poa_date ? ' – dated ' + Fmt.date(s.poa_date) : ''), selfie: 'Holding the photo ID next to their face' };
+
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
-    overlay.innerHTML = `
-      <div class="modal" style="max-width:720px;width:96%;">
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+
+    const fileHtml = (f) => f.url && /^image\/(jpeg|png|webp)$/.test(f.mime || '')
+      ? `<a href="${f.url}" target="_blank" rel="noopener"><img src="${f.url}" alt="" style="width:120px;height:90px;object-fit:cover;border-radius:4px;border:1px solid #E3E6EC;"></a>`
+      : `<a href="${f.url}" target="_blank" rel="noopener" class="btn btn-secondary btn-sm">Open ${f.mime === 'application/pdf' ? 'PDF' : 'file'}</a>`;
+
+    const draw = () => {
+      const decided = D.items.every(it => decision[it.item] && (decision[it.item].ok === true || decision[it.item].ok === false));
+      const anyNo = D.items.some(it => decision[it.item] && decision[it.item].ok === false);
+      overlay.innerHTML = `
+      <div class="modal" style="max-width:760px;width:96%;max-height:92vh;overflow:auto;">
         <h3>Identity check – ${esc(p.name)}</h3>
-        <p class="muted-line" style="font-size:12px;">${esc(AmlRoleLabel[p.role] || p.role)} · received ${Fmt.date(D.request.received_at)}</p>
-        <table style="font-size:13px;margin:8px 0;">
-          <tr><td class="muted-line" style="padding-right:10px;">Photo ID</td><td>${esc(s.id_label || '')}</td></tr>
-          <tr><td class="muted-line" style="padding-right:10px;">Proof of address</td><td>${esc(s.poa_label || '')}${s.poa_date ? ' – dated ' + Fmt.date(s.poa_date) : ''}</td></tr>
-          <tr><td class="muted-line" style="padding-right:10px;">Uploaded from</td><td style="font-size:11px;">${esc(s.ip || '')} · ${esc((s.device || '').slice(0, 70))}</td></tr>
-        </table>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 12px;">${files || '<p>No files.</p>'}</div>
-        <p style="font-size:12px;">Check: the ID is in date · same name on both documents · the selfie matches the photo ID · a home address (not a PO box).</p>
+        <p class="muted-line" style="font-size:12px;">${esc(AmlRoleLabel[p.role] || p.role)} · received ${Fmt.date(D.request.received_at)} · uploaded from ${esc(s.ip || '?')}</p>
+        <p style="font-size:12px;margin:6px 0 10px;">Check each document: ID in date · same name on both documents · selfie matches the photo ID · a home address (not a PO box). Tick ✓ to accept or ✗ to ask again.</p>
+        ${D.items.map(it => {
+          const dd = decision[it.item] || {};
+          const col = dd.ok === true ? '#1E7B4B' : dd.ok === false ? '#B3261E' : '#E3E6EC';
+          const bg = dd.ok === true ? '#EEF8F2' : dd.ok === false ? '#FCEEEE' : '#fff';
+          return `<div style="border:2px solid ${col};background:${bg};border-radius:10px;padding:10px;margin-bottom:10px;">
+            <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap;">
+              <div><b>${esc(it.label)}</b> <span class="muted-line" style="font-size:12px;">${esc(what[it.item] || '')}</span>
+                ${it.accepted_earlier ? '<span class="pill pill-green" style="margin-left:6px;">accepted earlier</span>' : ''}</div>
+              ${dd.locked ? `<span class="pill ${dd.ok ? 'pill-green' : 'pill-red'}">${dd.ok ? '✓ Verified' : '✗ Not verified'}</span>` : `
+              <div style="display:flex;gap:6px;">
+                <button type="button" data-ok="${it.item}" title="Verified" style="width:44px;height:36px;border-radius:8px;font-size:18px;cursor:pointer;border:2px solid #1E7B4B;background:${dd.ok === true ? '#1E7B4B' : '#fff'};color:${dd.ok === true ? '#fff' : '#1E7B4B'};">✓</button>
+                <button type="button" data-no="${it.item}" title="Not verified" style="width:44px;height:36px;border-radius:8px;font-size:18px;cursor:pointer;border:2px solid #B3261E;background:${dd.ok === false ? '#B3261E' : '#fff'};color:${dd.ok === false ? '#fff' : '#B3261E'};">✗</button>
+              </div>`}
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">${it.files.map(fileHtml).join('') || '<span class="muted-line">No file</span>'}</div>
+            ${dd.ok === false && !dd.locked ? `<label class="form-field" style="margin-top:8px;"><span>Reason (sent to ${esc(p.name.split(' ')[0])}) *</span>
+              <input class="input" data-reason="${it.item}" value="${esc(dd.reason || '')}" placeholder="e.g. the photo is blurred / the statement is older than 3 months"></label>` : ''}
+            ${dd.locked && dd.ok === false && dd.reason ? `<p style="font-size:12px;margin:6px 0 0;">Reason: ${esc(dd.reason)}</p>` : ''}
+          </div>`;
+        }).join('')}
         ${done ? `<p><span class="pill pill-green">CDD verified</span> ${p.record ? `Risk ${esc(p.record.risk_rating)} · PEP ${esc(p.record.pep_check)} · sanctions ${esc(p.record.sanctions_check)} · review by ${Fmt.date(p.record.review_date)}` : ''}</p>
           <div class="modal-actions"><button type="button" class="btn btn-secondary" id="modal-cancel">Close</button></div>`
-        : `<form id="aml-review">
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;">
-            <label class="form-field"><span>PEP check</span><select class="input input-select" name="pep_check"><option value="no">Not a PEP</option><option value="yes">PEP</option><option value="close_associate">Close associate of a PEP</option></select></label>
-            <label class="form-field"><span>Sanctions list check</span><select class="input input-select" name="sanctions_check"><option value="clear">Clear</option><option value="not_checked">Not checked</option><option value="match">Possible match</option></select></label>
-            <label class="form-field"><span>Risk rating</span><select class="input input-select" name="risk_rating"><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label>
+        : `<div id="aml-cdd" style="${anyNo ? 'opacity:.45;pointer-events:none;' : ''}">
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;">
+              <label class="form-field"><span>PEP check</span><select class="input input-select" id="aml-pep"><option value="no">Not a PEP</option><option value="yes">PEP</option><option value="close_associate">Close associate of a PEP</option></select></label>
+              <label class="form-field"><span>Sanctions list check</span><select class="input input-select" id="aml-sanc"><option value="clear">Clear</option><option value="not_checked">Not checked</option><option value="match">Possible match</option></select></label>
+              <label class="form-field"><span>Risk rating</span><select class="input input-select" id="aml-risk"><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label>
+            </div>
+            <label class="form-field"><span>Notes (optional)</span><textarea class="input textarea" id="aml-notes" rows="2"></textarea></label>
           </div>
-          <label class="form-field"><span>Notes (optional)</span><textarea class="input textarea" name="notes" rows="2"></textarea></label>
-          <label class="form-field"><span>If not accepted – what was wrong? (sent to the person)</span><input class="input" name="reason" placeholder="e.g. the bank statement is older than 3 months"></label>
           <div class="modal-actions">
             <button type="button" class="btn btn-secondary" id="modal-cancel">Cancel</button>
-            <button type="button" class="btn btn-secondary" id="aml-reject">Not accepted – ask again</button>
-            <button type="submit" class="btn btn-primary">CDD verified</button>
-          </div></form>`}
+            ${anyNo ? `<button type="button" class="btn btn-primary" id="aml-send" ${decided ? '' : 'disabled'}>Ask again for ✗ only</button>`
+              : `<button type="button" class="btn btn-primary" id="aml-send" ${decided ? '' : 'disabled'}>CDD verified</button>`}
+          </div>
+          ${decided ? '' : '<p class="muted-line" style="font-size:12px;text-align:right;margin-top:4px;">Tick or cross every document first.</p>'}`}
       </div>`;
-    document.body.appendChild(overlay);
-    overlay.querySelector('#modal-cancel').addEventListener('click', () => overlay.remove());
-    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
-    const form = overlay.querySelector('#aml-review');
-    if (!form) return;
-    const send = async (decision) => {
-      const fd = new FormData(form);
-      if (decision === 'rejected' && String(fd.get('reason') || '').trim().length < 5) { alert('Please say what was wrong, so the person knows what to upload.'); return; }
-      if (decision === 'verified' && fd.get('sanctions_check') === 'match' && !confirm('A possible sanctions match is recorded. Mark as verified anyway?')) return;
+      overlay.querySelector('#modal-cancel').addEventListener('click', () => overlay.remove());
+      overlay.querySelectorAll('[data-ok]').forEach(b => b.addEventListener('click', () => { decision[b.dataset.ok] = { ok: true }; keep(); draw(); }));
+      overlay.querySelectorAll('[data-no]').forEach(b => b.addEventListener('click', () => { decision[b.dataset.no] = { ok: false, reason: (decision[b.dataset.no] || {}).reason || '' }; keep(); draw(); }));
+      overlay.querySelectorAll('[data-reason]').forEach(inp => inp.addEventListener('input', () => { decision[inp.dataset.reason].reason = inp.value; }));
+      const sendBtn = overlay.querySelector('#aml-send');
+      if (sendBtn) sendBtn.addEventListener('click', () => send(anyNo));
+      if (form) { ['pep', 'sanc', 'risk', 'notes'].forEach(k => { const el = overlay.querySelector('#aml-' + k); if (el && form[k] !== undefined) el.value = form[k]; }); }
+    };
+    let form = null;
+    const keep = () => { // remember the dropdowns while redrawing
+      const g = (k) => overlay.querySelector('#aml-' + k);
+      if (g('pep')) form = { pep: g('pep').value, sanc: g('sanc').value, risk: g('risk').value, notes: g('notes').value };
+    };
+    const send = async (anyNo) => {
+      keep();
+      const items = {};
+      for (const it of D.items) {
+        if (it.accepted_earlier) continue;
+        const dd = decision[it.item];
+        if (!dd) { alert('Tick or cross every document first.'); return; }
+        if (dd.ok === false && String(dd.reason || '').trim().length < 3) { alert(`Please give a reason for "${it.label}", so ${p.name.split(' ')[0]} knows what to send.`); return; }
+        items[it.item] = dd.ok ? { ok: true } : { ok: false, reason: dd.reason.trim() };
+      }
+      if (anyNo) {
+        const list = Object.entries(items).filter(([, v]) => !v.ok).map(([k]) => D.items.find(x => x.item === k).label).join(', ');
+        if (!confirm(`Email ${p.name} asking again for: ${list}?`)) return;
+      } else if (form && form.sanc === 'match' && !confirm('A possible sanctions match is recorded. Mark as CDD verified anyway?')) return;
       try {
-        await this.call({ action: 'review', request_id: p.request.id, decision, pep_check: fd.get('pep_check'), sanctions_check: fd.get('sanctions_check'),
-          risk_rating: fd.get('risk_rating'), notes: fd.get('notes'), reason: fd.get('reason') });
+        await this.call({ action: 'review', request_id: p.request.id, items, pep_check: form?.pep, sanctions_check: form?.sanc, risk_rating: form?.risk, notes: form?.notes });
         overlay.remove(); this.render(this.clientId, this.containerEl);
       } catch (err) { alert(err.message); }
     };
-    form.addEventListener('submit', (e) => { e.preventDefault(); send('verified'); });
-    overlay.querySelector('#aml-reject').addEventListener('click', () => send('rejected'));
+    draw();
   },
 };
