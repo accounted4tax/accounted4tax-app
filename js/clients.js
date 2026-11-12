@@ -171,6 +171,7 @@ const ClientsPage = {
         <div class="detail-form"><div class="detail-form-header"><h2 style="font-size:15px;">Deadlines</h2></div><div class="form-section" id="panel-deadlines"></div></div>
         <div class="detail-form"><div class="detail-form-header"><h2 style="font-size:15px;">Notes</h2></div><div class="form-section" id="panel-notes"></div></div>
         <div class="detail-form" style="grid-column:1 / -1;"><div class="detail-form-header"><h2 style="font-size:15px;">Identity checks (CDD)</h2></div><div class="form-section" id="panel-aml"></div></div>
+        <div class="detail-form" style="grid-column:1 / -1;"><div class="detail-form-header"><h2 style="font-size:15px;">Self Assessment checklist</h2></div><div class="form-section" id="panel-checklist"></div></div>
         <div class="detail-form" style="grid-column:1 / -1;"><div class="detail-form-header"><h2 style="font-size:15px;">Correspondence</h2></div><div class="form-section" id="panel-correspondence"></div></div>
         <div class="detail-form" style="grid-column:1 / -1;"><div class="detail-form-header"><h2 style="font-size:15px;">History</h2></div><div class="form-section" id="panel-history"></div></div>
       </div>
@@ -183,6 +184,7 @@ const ClientsPage = {
     ClientDeadlinesPanel.render(params.id, document.getElementById('panel-deadlines'), { limit: 5 });
     ClientNotesPanel.render(params.id, document.getElementById('panel-notes'), { limit: 5 });
     ClientAmlPanel.render(params.id, document.getElementById('panel-aml'));
+    ClientChecklistPanel.render(params.id, document.getElementById('panel-checklist'), client);
     ClientCorrespondencePanel.render(params.id, document.getElementById('panel-correspondence'), { limit: 5 });
     ClientHistoryPanel.render(params.id, document.getElementById('panel-history'));
   },
