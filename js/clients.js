@@ -179,8 +179,8 @@ const ClientsPage = {
 
       <section class="pm-tab-panel" data-panel="work" hidden>
         <div class="pm-card"><div class="pm-card-head"><h3>Registrations</h3></div>
-          <div id="wrap-cis"><div id="panel-cis"></div></div>
-          <p class="muted-line" id="reg-empty" style="font-size:13px;">No registrations in progress. Online CIS registrations appear here; UTR, payroll, VAT, company and CIS contractor registrations will be added next.</p></div>
+          <div id="panel-registrations"></div>
+          <div id="wrap-cis" style="margin-top:12px;"><h4 style="font-size:13px;margin:0 0 6px;">Online CIS registration forms</h4><div id="panel-cis"></div></div></div>
         <div class="pm-card"><div class="pm-card-head"><h3>Services</h3></div><div id="panel-services"></div></div>
         <div class="pm-grid-2">
           <div class="pm-card"><div class="pm-card-head"><h3>Deadlines</h3></div><div id="panel-deadlines"></div></div>
@@ -236,14 +236,15 @@ const ClientsPage = {
         ClientLoePanel.render(id, $('ob-loe'));
         ClientHmrcPanel.render(id, $('ob-hmrc'), refreshHeader);
       } else if (k === 'work') {
-        ClientCisPanel.render(id, $('wrap-cis'), $('panel-cis')).then(() => { $('reg-empty').hidden = $('wrap-cis').style.display !== 'none'; });
+        ClientRegistrationsPanel.render(id, $('panel-registrations'));
+        ClientCisPanel.render(id, $('wrap-cis'), $('panel-cis'));
         ClientServicesPanel.render(id, $('panel-services'), {});
         ClientDeadlinesPanel.render(id, $('panel-deadlines'), {});
         ClientTasksPanel.render(id, $('panel-tasks'), {});
         ClientChecklistPanel.render(id, $('panel-checklist'), client);
       } else if (k === 'contact') {
         const p = Object.create(ClientPortalPanel); p.onChange = refreshHeader;
-        p.render(id, $('panel-portal'), client, { sections: ['requests', 'files', 'messages'], messagesEl: $('panel-messages') }).then(refreshHeader);
+        p.render(id, $('panel-portal'), client, { sections: ['docs', 'requests', 'messages'], messagesEl: $('panel-messages') }).then(refreshHeader);
       } else if (k === 'records') {
         const p = Object.create(ClientPortalPanel); p.onChange = refreshHeader;
         p.render(id, $('panel-approvals'), client, { sections: ['approvals'] }).then(refreshHeader);

@@ -14,6 +14,25 @@ const pmSignedUrl = async (fullPath, fileName) => {
   return data.signedUrl;
 };
 
+
+/* ---------------- Periods (same rules as the client portal) ---------------- */
+// Individuals: tax years "2025/26". Companies with a year end: "YE 2026-03-31". Newest first.
+const pmPeriods = (client) => {
+  const c = client || {}, out = [], today = new Date();
+  if (c.client_type === 'ltd' && c.year_end_date) {
+    const ye = new Date(c.year_end_date + 'T12:00:00');
+    while (ye < today) ye.setFullYear(ye.getFullYear() + 1);
+    for (let i = 0; i < 4; i++) { const y = new Date(ye); y.setFullYear(ye.getFullYear() - i); const iso = y.toISOString().slice(0, 10); out.push({ value: 'YE ' + iso, label: 'YE ' + Fmt.date(iso), end: y }); }
+  } else {
+    const start = (today.getMonth() > 3 || (today.getMonth() === 3 && today.getDate() >= 6)) ? today.getFullYear() : today.getFullYear() - 1;
+    for (let i = 0; i < 4; i++) { const a = start - i; const v = `${a}/${String(a + 1).slice(2)}`; out.push({ value: v, label: v, end: new Date(a + 1, 3, 5) }); }
+  }
+  return out;
+};
+const pmDefaultPeriod = (client) => { const p = pmPeriods(client), n = new Date(); const f = p.find(x => x.end < n); return f ? f.value : (p[0] ? p[0].value : ''); };
+const pmPeriodLabel = (client, v) => { const p = pmPeriods(client).find(x => x.value === v); return p ? p.label : (v ? (String(v).startsWith('YE ') ? 'YE ' + Fmt.date(String(v).slice(3)) : v) : 'No period'); };
+const DocGroups = { bank: ['Bank statements', 'all accounts'], income: ['Income', 'payslips, P45, P60, sales invoices, CIS statements'], expenses: ['Expenses', 'receipts, purchase invoices, mileage'], other: ['Other', 'HMRC letters, ID, anything else'] };
+
 /* ---------------- Client details ---------------- */
 const ClientDetailsCard = {
   render(el, client) {
@@ -220,6 +239,103 @@ const ClientTimelinePanel = {
       await ClientCorrespondencePanel.render(this.clientId, host, { limit: 1 });
       ClientCorrespondencePanel.openForm();
       const timer = setInterval(() => { if (!document.getElementById('correspondence-form')) { clearInterval(timer); this.render(this.clientId, this.el); } }, 700);
+    });
+  },
+};
+
+// ---- Registrations (Work tab): CIS, UTR, payroll, VAT, company, CIS contractor ----
+// Only types that exist for this client are shown. PDFs go to portal-docs/<client>/registrations/ (practice only:
+// the client can read a portal file only when a documents row shares it).
+const RegTypes = { cis_subcontractor: 'CIS subcontractor', utr: 'UTR (Self Assessment)', paye: 'Payroll (PAYE employer)', vat: 'VAT', company: 'Limited company', cis_contractor: 'CIS contractor' };
+const RegStatus = { preparing: ['Preparing', 'pill-amber'], submitted: ['Submitted', 'pill-blue'], registered: ['Registered', 'pill-green'], rejected: ['Rejected', 'pill-red'] };
+
+const ClientRegistrationsPanel = {
+  async render(clientId, el) {
+    this.clientId = clientId; this.el = el;
+    const { data, error } = await sb.from('client_registrations').select('*').eq('client_id', clientId).order('created_at', { ascending: false });
+    if (error) { el.innerHTML = `<p class="page-error">Could not load registrations: ${Esc(error.message)}</p>`; return; }
+    this.rows = data || [];
+    this.draw();
+  },
+
+  draw() {
+    const rows = this.rows;
+    this.el.innerHTML = `
+      ${rows.length ? `<div style="overflow-x:auto;"><table class="data-table" style="width:100%;font-size:13px;"><thead><tr><th>Registration</th><th>Status</th><th>Date submitted</th><th>Reference</th><th>Form (PDF)</th><th></th></tr></thead><tbody>
+        ${rows.map(r => { return `<tr>
+          <td><b>${Esc(RegTypes[r.reg_type] || r.reg_type)}</b>${r.notes ? `<div class="muted-line" style="font-size:12px;white-space:pre-wrap;">${Esc(r.notes)}</div>` : ''}</td>
+          <td><select class="input" data-reg-status="${r.id}" style="max-width:140px;">${Object.entries(RegStatus).map(([k, v]) => `<option value="${k}" ${r.status === k ? 'selected' : ''}>${v[0]}</option>`).join('')}</select></td>
+          <td>${r.submitted_date ? Fmt.date(r.submitted_date) : '—'}</td>
+          <td>${Esc(r.reference || '—')}</td>
+          <td>${r.file_url ? `<button type="button" class="btn btn-secondary btn-sm" data-reg-view="${r.id}">View</button>` : `<label class="btn btn-secondary btn-sm" style="cursor:pointer;">Add PDF<input type="file" accept=".pdf,.jpg,.jpeg,.png" data-reg-file="${r.id}" hidden></label>`}</td>
+          <td style="text-align:right;white-space:nowrap;"><button type="button" class="btn btn-secondary btn-sm" data-reg-edit="${r.id}">Edit</button></td></tr>`; }).join('')}
+      </tbody></table></div>` : '<p class="empty-state">No registrations for this client yet.</p>'}
+      <details style="margin-top:8px;" id="reg-add"><summary style="cursor:pointer;font-size:13px;font-weight:600;">+ Add a registration</summary>
+        <form id="reg-form" style="display:grid;gap:8px;margin-top:8px;max-width:640px;">
+          <input type="hidden" name="id">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <label class="form-field" style="flex:1;min-width:200px;"><span>Type *</span><select name="reg_type" class="input">${Object.entries(RegTypes).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select></label>
+            <label class="form-field" style="flex:1;min-width:140px;"><span>Status</span><select name="status" class="input">${Object.entries(RegStatus).map(([k, v]) => `<option value="${k}">${v[0]}</option>`).join('')}</select></label>
+            <label class="form-field" style="min-width:150px;"><span>Date submitted</span><input type="date" name="submitted_date" class="input"></label>
+          </div>
+          <label class="form-field"><span>Reference (UTR, VAT number, PAYE ref, CRN…)</span><input name="reference" class="input" maxlength="80"></label>
+          <label class="form-field"><span>Notes</span><input name="notes" class="input" maxlength="400"></label>
+          <label class="form-field"><span>Copy of the form (PDF, optional)</span><input type="file" name="file" class="input" accept=".pdf,.jpg,.jpeg,.png"></label>
+          <div><button type="submit" class="btn btn-primary btn-sm">Save</button></div>
+        </form>
+      </details>`;
+    this.wire();
+  },
+
+  async uploadFile(regId, file) {
+    if (file.size > 20 * 1048576) throw new Error('The file is bigger than 20 MB.');
+    const safe = file.name.normalize('NFKD').replace(/[^\w.\-]+/g, '_').slice(-90);
+    const path = `${this.clientId}/registrations/${new Date().toISOString().replace(/[:.]/g, '-')}-${safe}`;
+    const up = await sb.storage.from('portal-docs').upload(path, file, { contentType: file.type || 'application/pdf', upsert: false });
+    if (up.error) throw up.error;
+    const { error } = await sb.from('client_registrations').update({ file_url: 'portal-docs/' + path, updated_at: new Date().toISOString() }).eq('id', regId);
+    if (error) throw error;
+  },
+
+  wire() {
+    const el = this.el, reload = () => this.render(this.clientId, this.el);
+    el.querySelectorAll('[data-reg-status]').forEach(s => s.addEventListener('change', async () => {
+      const patch = { status: s.value, updated_at: new Date().toISOString() };
+      const r = this.rows.find(x => x.id === s.dataset.regStatus);
+      if (s.value === 'submitted' && r && !r.submitted_date) patch.submitted_date = new Date().toISOString().slice(0, 10);
+      const { error } = await sb.from('client_registrations').update(patch).eq('id', s.dataset.regStatus);
+      if (error) alert(`Could not save: ${error.message}`); reload();
+    }));
+    el.querySelectorAll('[data-reg-view]').forEach(b => b.addEventListener('click', async () => {
+      const r = this.rows.find(x => x.id === b.dataset.regView); if (!r) return;
+      const { data, error } = await sb.storage.from('portal-docs').createSignedUrl(r.file_url.replace(/^portal-docs\//, ''), 60);
+      if (error) { alert(`Could not open: ${error.message}`); return; }
+      window.open(data.signedUrl, '_blank', 'noopener');
+    }));
+    el.querySelectorAll('[data-reg-file]').forEach(inp => inp.addEventListener('change', async () => {
+      if (!inp.files[0]) return;
+      try { await this.uploadFile(inp.dataset.regFile, inp.files[0]); } catch (e) { alert(`Upload failed: ${e.message}`); }
+      reload();
+    }));
+    el.querySelectorAll('[data-reg-edit]').forEach(b => b.addEventListener('click', () => {
+      const r = this.rows.find(x => x.id === b.dataset.regEdit), f = el.querySelector('#reg-form'); if (!r || !f) return;
+      ['id', 'reg_type', 'status', 'submitted_date', 'reference', 'notes'].forEach(k => { f.elements[k].value = r[k] || ''; });
+      el.querySelector('#reg-add').open = true; f.elements.reference.focus();
+    }));
+    const f = el.querySelector('#reg-form');
+    if (f) f.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fd = new FormData(f), id = fd.get('id');
+      const row = { reg_type: fd.get('reg_type'), status: fd.get('status'), submitted_date: fd.get('submitted_date') || null,
+        reference: String(fd.get('reference') || '').trim() || null, notes: String(fd.get('notes') || '').trim() || null, updated_at: new Date().toISOString() };
+      if (row.status === 'submitted' && !row.submitted_date) row.submitted_date = new Date().toISOString().slice(0, 10);
+      const btn = f.querySelector('button[type="submit"]'); btn.disabled = true; btn.textContent = 'Saving…';
+      const res = id ? await sb.from('client_registrations').update(row).eq('id', id).select('id').single()
+        : await sb.from('client_registrations').insert({ ...row, client_id: this.clientId }).select('id').single();
+      if (res.error) { alert(`Could not save: ${res.error.message}`); btn.disabled = false; btn.textContent = 'Save'; return; }
+      const file = f.elements.file.files[0];
+      if (file) { try { await this.uploadFile(res.data.id, file); } catch (err) { alert(`Saved, but the PDF upload failed: ${err.message}`); } }
+      reload();
     });
   },
 };
