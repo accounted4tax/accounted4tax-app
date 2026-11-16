@@ -584,3 +584,17 @@ a:hover { text-decoration: underline; }
 .pm-tl-date{white-space:nowrap;font-size:12px}
 .pill-blue{background:#E0F2FE;color:#075985}
 @media (max-width:900px){.pm-grid-3{grid-template-columns:1fr}.pm-grid-2{grid-template-columns:1fr}.pm-steps{grid-template-columns:repeat(2,minmax(0,1fr))}.pm-contact-side{max-width:none;position:static}}
+
+/* Client contact: sections that stand out */
+.pp-sec{border:1px solid var(--border);border-radius:10px;background:#fff;margin:0 0 16px;overflow:hidden}
+.pp-sec-h{background:#EEF2F7;border-bottom:1px solid var(--border);border-left:4px solid var(--navy);padding:9px 14px}
+.pp-sec-h h3{margin:0;font-size:15px;color:var(--navy)}
+.pp-sec-b{padding:12px 14px}
+.pp-sub{font-size:13.5px;margin:16px 0 6px;color:var(--navy);padding-bottom:4px;border-bottom:1px solid var(--border)}
+.pp-share{margin-top:12px;padding:12px 14px;background:#EEF6F5;border:1px solid #BFDCD9;border-left:4px solid var(--teal);border-radius:8px}
+.pp-share-h{font-size:14px;font-weight:700;color:var(--teal);margin-bottom:8px}
+.pp-ask{margin-top:12px}
+.pp-ask>summary{display:inline-block;cursor:pointer;font-size:13.5px;font-weight:600;color:#fff;background:var(--teal);border-radius:8px;padding:8px 14px;list-style:none}
+.pp-ask>summary::-webkit-details-marker{display:none}
+.pp-ask[open]>summary{background:var(--navy)}
+.pp-ask>form{background:#F7F8FA;border:1px solid var(--border);border-radius:8px;padding:12px}

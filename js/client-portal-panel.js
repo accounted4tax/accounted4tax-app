@@ -68,7 +68,7 @@ const ClientPortalPanel = {
     const periodOpts = (sel) => P.map(p => `<option value="${Esc(p.value)}" ${p.value === sel ? 'selected' : ''}>${Esc(p.label)}</option>`).join('');
     const active = this.access.filter(a => !a.revoked_at);
     const unread = this.msgs.filter(m => m.sender === 'client' && !m.read_by_practice_at).length;
-    const sec = (title, inner) => `<div class="pp-sec"><h3 style="font-size:14px;margin:0 0 8px;">${title}</h3>${inner}</div>`;
+    const sec = (title, inner, kind) => `<section class="pp-sec${kind ? ' pp-sec-' + kind : ''}"><div class="pp-sec-h"><h3>${title}</h3></div><div class="pp-sec-b">${inner}</div></section>`;
     let html = '';
 
     // service tabs + year tabs (shared by documents and requests) – the same structure the client sees
@@ -107,12 +107,12 @@ const ClientPortalPanel = {
       const shared = D.filter(d => d.uploaded_by !== 'client');
       const filings = this.docs.filter(d => d.doc_group === 'filings');
       const q = this.queue || [];
-      html += sec(`Documents – ${Esc(selLabel)}`, `
-        <div style="overflow-x:auto;"><table class="data-table" style="width:100%;font-size:13px;min-width:560px;"><thead><tr><th>From the client</th><th>Requested</th><th>Received</th><th>Status</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
-        <h4 style="font-size:13px;margin:14px 0 6px;">From us (${shared.length})</h4>
+      html += sec(`📁 Documents – ${Esc(selLabel)}`, `
+        <div style="overflow-x:auto;"><table class="data-table" style="width:100%;font-size:13px;min-width:560px;"><thead><tr><th>Client's uploads</th><th>Requested</th><th>Received</th><th>Status</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+        <h4 class="pp-sub">Shared with the client (${shared.length})</h4>
         ${shared.length ? `<table class="data-table" style="width:100%;font-size:12.5px;"><tbody>${shared.map(d => this.fileRow(d, P)).join('')}</tbody></table>` : '<p class="empty-state">Nothing shared for this service and year.</p>'}
-        <div style="margin-top:8px;padding:10px;border:1px dashed #D5DAE1;border-radius:8px;">
-          <div style="font-size:13px;font-weight:600;margin-bottom:6px;">Share files with the client</div>
+        <div class="pp-share">
+          <div class="pp-share-h">⇪ Share files with the client</div>
           ${q.length ? `<ul style="list-style:none;margin:0 0 8px;padding:0;font-size:13px;">${q.map((f, i) => `<li style="display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px solid #EEF1F4;">${Esc(f.name)} <span class="muted-line">${(f.size / 1048576).toFixed(1)} MB <button type="button" class="btn btn-secondary btn-sm" data-unq="${i}" aria-label="Remove ${Esc(f.name)}">×</button></span></li>`).join('')}</ul>` : ''}
           <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
             <label class="btn btn-secondary btn-sm" style="cursor:pointer;">${q.length ? 'Add more files' : 'Choose files'}<input type="file" id="pp-share-files" multiple accept=".pdf,.jpg,.jpeg,.png,.heic,.webp" hidden></label>
@@ -136,9 +136,9 @@ const ClientPortalPanel = {
         return `<tr><td><b>${Esc(r.title)}</b>${r.description ? `<div class="muted-line" style="font-size:12px;">${Esc(r.description)}</div>` : ''}${doc ? `<div class="muted-line" style="font-size:12px;">Document: ${Esc(doc.file_name)}</div>` : ''}</td>
           <td>${Esc(PortalKinds[r.kind] || r.kind)}${r.kind === 'upload' && r.doc_group ? `<div class="muted-line" style="font-size:12px;">${DocGroups[r.doc_group][0]}</div>` : ''}</td><td>${r.due_date ? Fmt.date(r.due_date) : '—'}</td><td><span class="pill ${st.c}">${st.t}</span></td><td style="white-space:nowrap;">${btns}</td></tr>`;
       }).join('');
-      html += sec(`Requests to the client – ${Esc(selLabel)}`, `
+      html += sec(`✉ Requests to the client – ${Esc(selLabel)}`, `
         ${reqRows ? `<div style="overflow-x:auto;"><table class="data-table" style="width:100%;font-size:13px;"><thead><tr><th>Request</th><th>Type</th><th>By</th><th>Status</th><th></th></tr></thead><tbody>${reqRows}</tbody></table></div>` : `<p class="empty-state">No requests for this service and year.</p>`}
-        <details style="margin-top:8px;"><summary style="cursor:pointer;font-size:13px;font-weight:600;">+ Ask the client for something</summary>
+        <details class="pp-ask"><summary>+ Ask the client for something</summary>
           <form id="pp-req-form" style="display:grid;gap:8px;margin-top:8px;max-width:600px;">
             <div style="display:flex;gap:8px;flex-wrap:wrap;">
               <label class="form-field" style="flex:1;min-width:180px;"><span>Type</span><select name="kind" class="input">${Object.entries(PortalKinds).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select></label>
