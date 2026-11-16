@@ -36,7 +36,10 @@ const DocGroups = { bank: ['Bank statements', 'all accounts'], income: ['Income'
 // ---- Service and year tabs (same structure the client sees in the portal) ----
 // A year key is '2025/26' (tax year) or 'YE 2026-03-31' (company year end).
 const pmIsFiling = (name) => /confirmation statement/i.test(name || '');
-const pmRowKey = (r) => /^\d{4}\/\d{2}$/.test(r.tax_year || '') ? r.tax_year : (r.period_end ? 'YE ' + String(r.period_end).slice(0, 10) : null);
+// '25/26', '2025-26', '2025/2026' -> '2025/26'; 'YE yyyy-04-05' (an old tax year) -> 'yyyy-1/yy'
+const pmNormTY = (v) => { const m = /^\s*(\d{2}|\d{4})\s*[\/-]\s*(\d{2}|\d{4})\s*$/.exec(v || ''); if (!m) return null; let a = +m[1]; if (a < 100) a += 2000; return `${a}/${String(a + 1).slice(2)}`; };
+const pmNormKey = (v) => !v ? null : (pmNormTY(v) || (/^YE \d{4}-04-0[56]$/.test(v) ? `${+v.slice(3, 7) - 1}/${v.slice(5, 7)}` : v));
+const pmRowKey = (r) => { const ty = pmNormTY(r.tax_year); if (ty) return ty; if (!r.period_end) return null; const pe = String(r.period_end).slice(0, 10); return /-04-0[56]$/.test(pe) ? `${+pe.slice(0, 4) - 1}/${pe.slice(2, 4)}` : 'YE ' + pe; };
 const pmKeyEnd = (k) => { let m = /^YE (\d{4}-\d{2}-\d{2})$/.exec(k || ''); if (m) return new Date(m[1] + 'T12:00:00'); m = /^(\d{4})\/\d{2}$/.exec(k || ''); return m ? new Date(+m[1] + 1, 3, 5) : new Date(0); };
 const pmKeyLabel = (k) => !k ? 'No year' : (String(k).startsWith('YE ') ? 'YE ' + Fmt.date(String(k).slice(3)) : k);
 const pmCurrentKey = (kind, client, rows) => {
@@ -71,7 +74,7 @@ const pmServiceTabs = (client, services, docs) => {
   const ids = {}; out.forEach(g => g.rows.forEach(r => { ids[r.id] = g.key; }));
   const loose = (docs || []).filter(d => d.doc_group !== 'filings' && !ids[d.client_service_id]);
   if (loose.length || !out.length) {
-    let ky = loose.map(d => d.tax_year || null); if (!out.length) pmPeriods(c).forEach(p => ky.push(p.value));
+    let ky = loose.map(d => pmNormKey(d.tax_year)); if (!out.length) pmPeriods(c).forEach(p => ky.push(p.value));
     ky = [...new Set(ky)].sort((a, b) => pmKeyEnd(b) - pmKeyEnd(a));
     out.push({ key: '_other', name: out.length ? 'Not linked to a service' : 'All documents', rows: [], kind: 'any', years: ky.length ? ky : [null], loose: true });
   }
