@@ -33,6 +33,54 @@ const pmDefaultPeriod = (client) => { const p = pmPeriods(client), n = new Date(
 const pmPeriodLabel = (client, v) => { const p = pmPeriods(client).find(x => x.value === v); return p ? p.label : (v ? (String(v).startsWith('YE ') ? 'YE ' + Fmt.date(String(v).slice(3)) : v) : 'No period'); };
 const DocGroups = { bank: ['Bank statements', 'all accounts'], income: ['Income', 'payslips, P45, P60, sales invoices, CIS statements'], expenses: ['Expenses', 'receipts, purchase invoices, mileage'], other: ['Other', 'HMRC letters, ID, anything else'] };
 
+// ---- Service and year tabs (same structure the client sees in the portal) ----
+// A year key is '2025/26' (tax year) or 'YE 2026-03-31' (company year end).
+const pmIsFiling = (name) => /confirmation statement/i.test(name || '');
+const pmRowKey = (r) => /^\d{4}\/\d{2}$/.test(r.tax_year || '') ? r.tax_year : (r.period_end ? 'YE ' + String(r.period_end).slice(0, 10) : null);
+const pmKeyEnd = (k) => { let m = /^YE (\d{4}-\d{2}-\d{2})$/.exec(k || ''); if (m) return new Date(m[1] + 'T12:00:00'); m = /^(\d{4})\/\d{2}$/.exec(k || ''); return m ? new Date(+m[1] + 1, 3, 5) : new Date(0); };
+const pmKeyLabel = (k) => !k ? 'No year' : (String(k).startsWith('YE ') ? 'YE ' + Fmt.date(String(k).slice(3)) : k);
+const pmCurrentKey = (kind, client, rows) => {
+  const today = new Date().toISOString().slice(0, 10);
+  if (kind === 'tax') { const n = new Date(); let y = n.getFullYear(); if (n < new Date(y, 3, 6)) y--; return `${y}/${String(y + 1).slice(2)}`; }
+  const base = (client && client.year_end_date) || rows.map(r => r.period_end).filter(Boolean).sort().pop();
+  if (!base) return null;
+  const d = new Date(String(base).slice(0, 10) + 'T12:00:00'); let g = 0;
+  while (d.toISOString().slice(0, 10) < today && g++ < 60) d.setFullYear(d.getFullYear() + 1);
+  while (true && g++ < 120) { const p = new Date(d); p.setFullYear(d.getFullYear() - 1); if (p.toISOString().slice(0, 10) >= today) d.setFullYear(d.getFullYear() - 1); else break; }
+  return 'YE ' + d.toISOString().slice(0, 10);
+};
+// services: client_services rows with services_catalogue(name); docs: documents rows. Returns tabs + ids map (client_service_id -> tab key).
+const pmServiceTabs = (client, services, docs) => {
+  const out = [], by = {}, c = client || {};
+  (services || []).filter(r => r.status !== 'cancelled').forEach(r => {
+    const name = (r.services_catalogue && r.services_catalogue.name) || 'Service';
+    if (pmIsFiling(name)) return;
+    const k = r.service_id || r.id;
+    if (!by[k]) { by[k] = { key: k, name, rows: [] }; out.push(by[k]); }
+    by[k].rows.push(r);
+  });
+  out.forEach(g => {
+    const wk = g.rows.filter(pmRowKey);
+    g.kind = wk.length ? (pmRowKey(wk[0]).startsWith('YE ') ? 'co' : 'tax') : (c.client_type === 'ltd' && !/self assessment|personal/i.test(g.name) ? 'co' : 'tax');
+    const ys = g.rows.map(pmRowKey).filter(Boolean), cur = pmCurrentKey(g.kind, c, g.rows);
+    if (cur && !ys.includes(cur)) ys.push(cur);
+    if (!ys.length) ys.push(null);
+    g.current = cur;
+    g.years = [...new Set(ys)].sort((a, b) => pmKeyEnd(b) - pmKeyEnd(a));
+  });
+  const ids = {}; out.forEach(g => g.rows.forEach(r => { ids[r.id] = g.key; }));
+  const loose = (docs || []).filter(d => d.doc_group !== 'filings' && !ids[d.client_service_id]);
+  if (loose.length || !out.length) {
+    let ky = loose.map(d => d.tax_year || null); if (!out.length) pmPeriods(c).forEach(p => ky.push(p.value));
+    ky = [...new Set(ky)].sort((a, b) => pmKeyEnd(b) - pmKeyEnd(a));
+    out.push({ key: '_other', name: out.length ? 'Not linked to a service' : 'All documents', rows: [], kind: 'any', years: ky.length ? ky : [null], loose: true });
+  }
+  out.ids = ids;
+  return out;
+};
+const pmRowFor = (g, y) => g.rows.find(r => pmRowKey(r) === y) || null;
+const pmLinkRow = (g, y) => pmRowFor(g, y) || [...g.rows].sort((a, b) => pmKeyEnd(pmRowKey(b)) - pmKeyEnd(pmRowKey(a)))[0] || null;
+
 /* ---------------- Client details ---------------- */
 const ClientDetailsCard = {
   render(el, client) {
