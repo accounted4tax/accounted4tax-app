@@ -61,8 +61,8 @@ const ServicesPage = {
           ${this.allServices.map(s => `
             <tr>
               <td>
-                <div>${s.name}</div>
-                ${s.description ? `<div class="muted-line" style="font-size:12px;">${s.description}</div>` : ''}
+                <div>${Esc(s.name)}</div>
+                ${s.description ? `<div class="muted-line" style="font-size:12px;">${Esc(s.description)}</div>` : ''}
               </td>
               <td>${(SERVICE_CLIENT_TYPES.find(t => t.value === s.client_type) || {}).label || s.client_type || '—'}</td>
               <td>${s.price_label || Fmt.money(s.default_price)}</td>

@@ -101,7 +101,7 @@ const App = {
         <div class="main-col">
           <header class="topbar">
             <div id="topbar-title" class="topbar-title">Dashboard</div>
-            <div class="topbar-user">${Auth.currentUser ? Auth.currentUser.email : ''}</div>
+            <div class="topbar-user">${Auth.currentUser ? Esc(Auth.currentUser.email) : ''}</div>
           </header>
           <main class="content" id="content"></main>
         </div>
@@ -126,6 +126,9 @@ const App = {
 };
 
 // Small shared helpers used across pages
+// Escape text before putting it into HTML (names, notes and messages can come from the public website).
+const Esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
 const Fmt = {
   money(n) {
     if (n === null || n === undefined || n === '') return '—';

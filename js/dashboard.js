@@ -77,7 +77,7 @@ const DashboardPage = {
         <tbody>
           ${rows.map(r => `
             <tr>
-              <td>${r.clients ? r.clients.full_name : '—'}</td>
+              <td>${r.clients ? Esc(r.clients.full_name) : '—'}</td>
               <td class="muted-line">${r.quarter_label || ''}</td>
               <td class="align-right">${Fmt.date(r.deadline)}</td>
             </tr>

@@ -41,7 +41,7 @@ const TasksPage = {
         </select>
         <select id="filter-client" class="input input-select">
           <option value="">All clients</option>
-          ${this.allClients.map(c => `<option value="${c.id}" ${this.filterClient === c.id ? 'selected' : ''}>${c.full_name}</option>`).join('')}
+          ${this.allClients.map(c => `<option value="${c.id}" ${this.filterClient === c.id ? 'selected' : ''}>${Esc(c.full_name)}</option>`).join('')}
         </select>
         <button id="add-task-btn" class="btn btn-primary">+ Add task</button>
       </div>
@@ -76,10 +76,10 @@ const TasksPage = {
           ${rows.map(t => `
             <tr>
               <td>
-                <div>${t.title}</div>
-                ${t.description ? `<div class="muted-line" style="font-size:12px;">${t.description}</div>` : ''}
+                <div>${Esc(t.title)}</div>
+                ${t.description ? `<div class="muted-line" style="font-size:12px;">${Esc(t.description)}</div>` : ''}
               </td>
-              <td class="muted-line">${t.clients ? t.clients.full_name : '—'}</td>
+              <td class="muted-line">${t.clients ? Esc(t.clients.full_name) : '—'}</td>
               <td>${taskStatusPill(t.status)}</td>
               <td class="${t.due_date && t.due_date < today && t.status !== 'completed' ? 'pill-red' : 'muted-line'}">${Fmt.date(t.due_date)}</td>
               <td class="align-right">
@@ -110,7 +110,7 @@ const TasksPage = {
           <label class="form-field"><span>Client *</span>
             <select class="input input-select" name="client_id" required>
               <option value="">Select a client…</option>
-              ${this.allClients.map(c => `<option value="${c.id}" ${t.client_id === c.id ? 'selected' : ''}>${c.full_name}</option>`).join('')}
+              ${this.allClients.map(c => `<option value="${c.id}" ${t.client_id === c.id ? 'selected' : ''}>${Esc(c.full_name)}</option>`).join('')}
             </select>
           </label>
           <label class="form-field"><span>Title *</span><input class="input" name="title" value="${t.title || ''}" required /></label>

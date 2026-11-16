@@ -32,7 +32,7 @@ const ClientTasksPanel = {
         : rows.map(t => `
             <div class="mini-row">
               <div>
-                <div style="font-size:13px;">${t.title}</div>
+                <div style="font-size:13px;">${Esc(t.title)}</div>
                 <div style="margin-top:2px;">${taskStatusPill(t.status)}</div>
               </div>
               <div class="${t.due_date && t.due_date < today && t.status !== 'completed' ? 'pill-red' : 'muted-line'}" style="font-size:12px;">${Fmt.date(t.due_date)}</div>

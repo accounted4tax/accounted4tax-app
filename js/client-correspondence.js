@@ -41,7 +41,7 @@ const ClientCorrespondencePanel = {
               ${rows.map(c => `
                 <tr>
                   <td>${directionPill(c.direction)}</td>
-                  <td>${c.subject}</td>
+                  <td>${Esc(c.subject)}</td>
                   <td class="muted-line">${Fmt.date(c.sent_at || c.created_at)}</td>
                 </tr>
               `).join('')}

@@ -43,7 +43,7 @@ const DeadlinesPage = {
         </select>
         <select id="filter-client" class="input input-select">
           <option value="">All clients</option>
-          ${this.allClients.map(c => `<option value="${c.id}" ${this.filterClient === c.id ? 'selected' : ''}>${c.full_name}</option>`).join('')}
+          ${this.allClients.map(c => `<option value="${c.id}" ${this.filterClient === c.id ? 'selected' : ''}>${Esc(c.full_name)}</option>`).join('')}
         </select>
         <button id="add-deadline-btn" class="btn btn-primary">+ Add deadline</button>
       </div>
@@ -77,7 +77,7 @@ const DeadlinesPage = {
         <tbody>
           ${rows.map(d => `
             <tr>
-              <td>${d.clients ? d.clients.full_name : '—'}</td>
+              <td>${d.clients ? Esc(d.clients.full_name) : '—'}</td>
               <td class="muted-line">${d.quarter_label || `Q${d.quarter}`} · ${d.tax_year || ''}</td>
               <td class="${d.deadline && d.deadline < today && !['submitted', 'final_declaration'].includes(d.status) ? 'pill-red' : 'muted-line'}">${Fmt.date(d.deadline)}</td>
               <td>${deadlineStatusPill(d.status)}</td>
@@ -113,7 +113,7 @@ const DeadlinesPage = {
           <label class="form-field"><span>Client *</span>
             <select class="input input-select" name="client_id" required>
               <option value="">Select a client…</option>
-              ${this.allClients.map(c => `<option value="${c.id}" ${d.client_id === c.id ? 'selected' : ''}>${c.full_name}</option>`).join('')}
+              ${this.allClients.map(c => `<option value="${c.id}" ${d.client_id === c.id ? 'selected' : ''}>${Esc(c.full_name)}</option>`).join('')}
             </select>
           </label>
           <label class="form-field"><span>Service (optional)</span>
