@@ -89,7 +89,7 @@ const ClientPortalPanel = {
       ${d.uploaded_by !== 'client' ? ` <button type="button" class="btn btn-secondary btn-sm" data-share="${d.id}" data-on="${d.visible_to_client ? '0' : '1'}">${d.visible_to_client ? 'Hide' : 'Share'}</button>` : ''}</td></tr>`;
     const filesHtml = `
       <div style="display:grid;gap:12px;">
-        <div><b style="font-size:13px;">From the client</b>${clientDocs.length ? `<div style="overflow-x:auto;"><table class="data-table" style="width:100%;font-size:13px;"><tbody>${clientDocs.map(fileRow).join('')}</tbody></table></div>` : `<p class="empty-state">Nothing uploaded yet.</p>`}</div>
+        <div><b style="font-size:13px;">From the client</b>${clientDocs.some(d => !d.verified) ? ` <button type="button" class="btn btn-secondary btn-sm" id="pp-check-all" style="margin-left:8px;">Mark all checked (${clientDocs.filter(d => !d.verified).length})</button>` : ''}${clientDocs.length ? `<div style="overflow-x:auto;"><table class="data-table" style="width:100%;font-size:13px;"><tbody>${clientDocs.map(fileRow).join('')}</tbody></table></div>` : `<p class="empty-state">Nothing uploaded yet.</p>`}</div>
         <div><b style="font-size:13px;">Shared by us</b>${this.docs.filter(d => d.uploaded_by !== 'client').length ? `<div style="overflow-x:auto;"><table class="data-table" style="width:100%;font-size:13px;"><tbody>${this.docs.filter(d => d.uploaded_by !== 'client').map(fileRow).join('')}</tbody></table></div>` : `<p class="empty-state">Nothing shared yet.</p>`}</div>
         <form id="pp-share-form" style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
           <label class="form-field" style="flex:1;min-width:220px;"><span>Share a file with the client (PDF or image, max 20 MB)</span><input type="file" name="file" class="input" accept=".pdf,.jpg,.jpeg,.png,.heic,.webp" required></label>
@@ -121,6 +121,7 @@ const ClientPortalPanel = {
       sec('Approval records', apHtml);
     this.wire();
     const th = document.getElementById('pp-thread'); if (th) th.scrollTop = th.scrollHeight;
+    if (this.approvals.some(a => !a.seen_by_practice_at)) sb.from('portal_approvals').update({ seen_by_practice_at: new Date().toISOString() }).eq('client_id', this.clientId).is('seen_by_practice_at', null).then(() => {});
     if (unread) sb.from('portal_messages').update({ read_by_practice_at: new Date().toISOString() }).eq('client_id', this.clientId).eq('sender', 'client').is('read_by_practice_at', null).then(() => {});
   },
 
@@ -200,6 +201,11 @@ const ClientPortalPanel = {
     C.querySelectorAll('[data-verify]').forEach(b => b.addEventListener('click', async () => {
       busy(b, true); await sb.from('documents').update({ verified: true, verified_at: new Date().toISOString() }).eq('id', b.dataset.verify); reload();
     }));
+    if ($('pp-check-all')) $('pp-check-all').addEventListener('click', async (e) => {
+      busy(e.target, true, 'Saving…');
+      await sb.from('documents').update({ verified: true, verified_at: new Date().toISOString() }).eq('client_id', this.clientId).eq('uploaded_by', 'client').eq('verified', false).like('file_url', 'portal-docs/%');
+      reload();
+    });
     C.querySelectorAll('[data-share]').forEach(b => b.addEventListener('click', async () => {
       busy(b, true); await sb.from('documents').update({ visible_to_client: b.dataset.on === '1' }).eq('id', b.dataset.share);
       if (b.dataset.on === '1') this.notify('document');

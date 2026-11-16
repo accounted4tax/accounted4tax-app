@@ -32,7 +32,12 @@ const ClientsPage = {
     const el = App.content();
     el.innerHTML = `<div class="page-loading">Loading clients…</div>`;
 
-    const { data, error } = await sb.from('clients').select('*').order('full_name', { ascending: true });
+    const [{ data, error }, portalRes] = await Promise.all([
+      sb.from('clients').select('*').order('full_name', { ascending: true }),
+      sb.rpc('portal_activity'),
+    ]);
+    this.portalNew = {};
+    (portalRes.data || []).forEach(r => { this.portalNew[r.client_id] = r.new_messages + r.new_uploads + r.approved + r.changes; });
     if (error) {
       el.innerHTML = `<div class="page-error">Could not load clients: ${error.message}</div>`;
       return;
@@ -114,6 +119,7 @@ const ClientsPage = {
                 <div class="cell-with-avatar">
                   <span class="avatar">${Esc(Fmt.initials(c.full_name))}</span>
                   <span>${Esc(c.full_name)}</span>
+                  ${this.portalNew && this.portalNew[c.id] ? `<span class="pill pill-amber" title="New in the client portal" style="margin-left:6px;">${this.portalNew[c.id]} new</span>` : ''}
                 </div>
               </td>
               <td>${clientTypeLabel(c.client_type)}</td>
