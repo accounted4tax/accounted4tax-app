@@ -4,6 +4,8 @@
 // this panel is practice-only. Edge Function used: portal-invite (invite, revoke, notify_client).
 // Show it in several places on one page with Object.create(ClientPortalPanel) per place.
 
+// Where a file we share appears in the client portal.
+const PmShareKinds = { other: 'Documents (year folder)', returns: 'Returns and accounts (year folder)', filings: 'Company filings' };
 const PortalKinds = { upload: 'Upload documents', approve: 'Review & approve', confirm: 'Confirm details', info: 'Information / question' };
 const PortalReqStatus = { open: { t: 'Waiting for client', c: 'pill-amber' }, submitted: { t: 'Client replied – to check', c: 'pill-amber' }, done: { t: 'Done', c: 'pill-green' }, cancelled: { t: 'Cancelled', c: 'pill-grey' } };
 
@@ -93,6 +95,7 @@ const ClientPortalPanel = {
           <form id="pp-share-form" style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-top:8px;">
             <label class="form-field" style="flex:1;min-width:220px;"><span>Share a file with the client (PDF or image, max 20 MB)</span><input type="file" name="file" class="input" accept=".pdf,.jpg,.jpeg,.png,.heic,.webp" required></label>
             <label class="form-field"><span>Period</span><select name="period" class="input">${periodOpts(this.period === 'all' ? pmDefaultPeriod(this.client) : this.period)}</select></label>
+            <label class="form-field"><span>Shows in the portal under</span><select name="kind" class="input">${Object.entries(PmShareKinds).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select></label>
             <label style="font-size:13px;"><input type="checkbox" name="approve"> Ask the client to approve it</label>
             <button type="submit" class="btn btn-primary btn-sm">Share</button>
           </form>
@@ -163,7 +166,7 @@ const ClientPortalPanel = {
       <td style="white-space:nowrap;text-align:right;"><button type="button" class="btn btn-secondary btn-sm" data-dl="${d.id}">Download</button>
       ${fromClient && !d.verified ? ` <button type="button" class="btn btn-secondary btn-sm" data-verify="${d.id}">Mark checked</button>` : ''}
       ${!fromClient ? ` <button type="button" class="btn btn-secondary btn-sm" data-share="${d.id}" data-on="${d.visible_to_client ? '0' : '1'}">${d.visible_to_client ? 'Hide' : 'Share'}</button>` : ''}
-      <select class="input" data-move-group="${d.id}" title="Move to another category" style="max-width:150px;display:inline-block;">${Object.entries(DocGroups).map(([k, v]) => `<option value="${k}" ${(d.doc_group || 'other') === k ? 'selected' : ''}>${v[0]}</option>`).join('')}</select>
+      <select class="input" data-move-group="${d.id}" title="Move to another category" style="max-width:170px;display:inline-block;">${Object.entries(DocGroups).map(([k, v]) => `<option value="${k}" ${(d.doc_group || 'other') === k ? 'selected' : ''}>${v[0]}</option>`).join('')}${fromClient ? '' : `<option value="returns" ${d.doc_group === 'returns' ? 'selected' : ''}>Returns and accounts</option><option value="filings" ${d.doc_group === 'filings' ? 'selected' : ''}>Company filings</option>`}</select>
       <select class="input" data-move-period="${d.id}" title="Move to another period" style="max-width:150px;display:inline-block;"><option value="">No period</option>${P.map(p => `<option value="${Esc(p.value)}" ${d.tax_year === p.value ? 'selected' : ''}>${Esc(p.label)}</option>`).join('')}</select></td></tr>`;
   },
 
@@ -184,7 +187,7 @@ const ClientPortalPanel = {
       reload();
     }));
     C.querySelectorAll('[data-move-group]').forEach(s => s.addEventListener('change', async () => {
-      await sb.from('documents').update({ doc_group: s.value, category: s.value === 'bank' ? 'bank_statement' : 'other' }).eq('id', s.dataset.moveGroup); reload();
+      await sb.from('documents').update({ doc_group: s.value, category: s.value === 'bank' ? 'bank_statement' : s.value === 'returns' ? 'tax_return' : 'other' }).eq('id', s.dataset.moveGroup); reload();
     }));
     C.querySelectorAll('[data-move-period]').forEach(s => s.addEventListener('change', async () => {
       await sb.from('documents').update({ tax_year: s.value || null }).eq('id', s.dataset.movePeriod); reload();
@@ -252,7 +255,7 @@ const ClientPortalPanel = {
     }));
     if ($('pp-share-form')) $('pp-share-form').addEventListener('submit', async (e) => {
       e.preventDefault();
-      const form = e.target, file = form.querySelector('[name="file"]').files[0], approve = form.querySelector('[name="approve"]').checked, period = form.querySelector('[name="period"]').value || null;
+      const form = e.target, file = form.querySelector('[name="file"]').files[0], approve = form.querySelector('[name="approve"]').checked, period = form.querySelector('[name="period"]').value || null, kind = form.querySelector('[name="kind"]').value || 'other';
       if (!file) return;
       if (file.size > 20 * 1048576) { alert('The file is bigger than 20 MB.'); return; }
       const btn = form.querySelector('button'); busy(btn, true, 'Uploading…');
@@ -260,7 +263,7 @@ const ClientPortalPanel = {
       const path = `${this.clientId}/shared/${new Date().toISOString().replace(/[:.]/g, '-')}-${safe}`;
       const up = await sb.storage.from('portal-docs').upload(path, file, { contentType: file.type || 'application/octet-stream', upsert: false });
       if (up.error) { alert(`Upload failed: ${up.error.message}`); busy(btn, false, 'x'); return; }
-      const { data: doc, error } = await sb.from('documents').insert({ client_id: this.clientId, category: 'other', doc_group: 'other', tax_year: period, file_name: file.name, file_url: 'portal-docs/' + path,
+      const { data: doc, error } = await sb.from('documents').insert({ client_id: this.clientId, category: kind === 'returns' ? 'tax_return' : 'other', doc_group: kind, tax_year: kind === 'filings' ? null : period, file_name: file.name, file_url: 'portal-docs/' + path,
         file_size: file.size, mime_type: file.type || null, uploaded_by: 'practice', verified: true, visible_to_client: true }).select('id').single();
       if (error) { alert(`Could not save: ${error.message}`); busy(btn, false, 'x'); return; }
       if (approve) {
