@@ -49,7 +49,7 @@ const ClientPortalPanel = {
   inSel(x) {
     const g = this.curTab(); if (!g) return true;
     const inTab = g.loose ? !this.tabs.ids[x.client_service_id] : this.tabs.ids[x.client_service_id] === g.key;
-    return inTab && (x.tax_year || null) === this.sel.yr;
+    return inTab && pmNormKey(x.tax_year) === this.sel.yr;
   },
   curTab() {
     const T = this.tabs || []; this.sel = this.sel || {};
@@ -185,7 +185,7 @@ const ClientPortalPanel = {
   fileRow(d, P) {
     const fromClient = d.uploaded_by === 'client';
     const pill = fromClient ? (d.verified ? '<span class="pill pill-green">Checked</span>' : '<span class="pill pill-amber">New</span>') : (d.visible_to_client ? '<span class="pill pill-green">Shared</span>' : '<span class="pill pill-grey">Hidden</span>');
-    return `<tr><td>${Esc(d.file_name)}<div class="muted-line" style="font-size:11.5px;">${Fmt.date(d.created_at)} · ${Esc(pmPeriodLabel(this.client, d.tax_year))}</div></td><td>${pill}</td>
+    return `<tr><td>${Esc(d.file_name)}<div class="muted-line" style="font-size:11.5px;">${Fmt.date(d.created_at)} · ${Esc(pmKeyLabel(pmNormKey(d.tax_year)))}</div></td><td>${pill}</td>
       <td style="white-space:nowrap;text-align:right;"><button type="button" class="btn btn-secondary btn-sm" data-dl="${d.id}">Download</button>
       ${fromClient && !d.verified ? ` <button type="button" class="btn btn-secondary btn-sm" data-verify="${d.id}">Mark checked</button>` : ''}
       ${!fromClient ? ` <button type="button" class="btn btn-secondary btn-sm" data-share="${d.id}" data-on="${d.visible_to_client ? '0' : '1'}">${d.visible_to_client ? 'Hide' : 'Share'}</button>` : ''}
@@ -194,7 +194,7 @@ const ClientPortalPanel = {
   },
 
   moveOpts(d) {
-    const cur = `${this.tabs.ids[d.client_service_id] || '_other'}|${d.tax_year || ''}`, o = [];
+    const cur = `${this.tabs.ids[d.client_service_id] || '_other'}|${pmNormKey(d.tax_year) || ''}`, o = [];
     this.tabs.forEach(t => t.years.forEach(y => { const v = `${t.key}|${y || ''}`; o.push(`<option value="${Esc(v)}" ${v === cur ? 'selected' : ''}>${Esc(t.name)} · ${Esc(pmKeyLabel(y))}</option>`); }));
     if (!o.some(x => x.includes('selected'))) o.unshift(`<option value="${Esc(cur)}" selected>${Esc(pmKeyLabel(d.tax_year))}</option>`);
     return o.join('');

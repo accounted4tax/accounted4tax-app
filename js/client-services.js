@@ -39,7 +39,7 @@ const ClientServicesPanel = {
     const open = this.mtd.filter(m => m.client_service_id === cs.id && !/submitted|filed|done/i.test(m.status || '')).map(m => m.deadline).sort();
     if (open.length) return { date: open.find(d => d >= today) || open[open.length - 1], est: false };
     const name = ((cs.services_catalogue && cs.services_catalogue.name) || '').toLowerCase();
-    const ty = /^(\d{4})\/\d{2}$/.exec(cs.tax_year || '');
+    const ty = /^(\d{4})\/\d{2}$/.exec(pmNormTY(cs.tax_year) || '');
     if (ty && /self assessment|tax return|\bsa\b|landlord|cis/.test(name)) return { date: `${Number(ty[1]) + 2}-01-31`, est: true };
     if (cs.period_end && /account|ct600|corporation/.test(name)) {
       const d = new Date(cs.period_end + 'T00:00:00Z'); d.setUTCMonth(d.getUTCMonth() + 9);
@@ -67,7 +67,7 @@ const ClientServicesPanel = {
       <tbody>${list.map(({ cs, dl }) => `
         <tr>
           <td><b>${Esc(cs.services_catalogue ? cs.services_catalogue.name : '—')}</b></td>
-          <td class="muted-line">${Esc(cs.tax_year || (cs.period_end ? 'YE ' + Fmt.date(cs.period_end) : '—'))}</td>
+          <td class="muted-line">${Esc(pmKeyLabel(pmRowKey(cs)) === 'No year' ? '—' : pmKeyLabel(pmRowKey(cs)))}</td>
           <td>${dlCell(dl)}</td>
           <td>${ws(cs)}</td>
           <td>${clientServiceStatusPill(cs.status)}</td>
