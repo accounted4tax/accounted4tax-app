@@ -14,10 +14,11 @@ const ClientServicesPanel = {
     this.opts = opts || {};
     this.showAll = this.showAll || false;
 
-    const [assignedRes, catalogueRes, mtdRes] = await Promise.all([
+    const [assignedRes, catalogueRes, mtdRes, clientRes] = await Promise.all([
       sb.from('client_services').select('*, services_catalogue(name, billing_type)').eq('client_id', clientId).order('created_at', { ascending: false }),
       sb.from('services_catalogue').select('id, name, default_price, price_label, billing_type').order('sort_order', { ascending: true }),
-      sb.from('mtd_submissions').select('client_service_id, deadline, status, quarter_label').eq('client_id', clientId).not('deadline', 'is', null)
+      sb.from('mtd_submissions').select('client_service_id, deadline, status, quarter_label').eq('client_id', clientId).not('deadline', 'is', null),
+      sb.from('clients').select('confirmation_statement_date').eq('id', clientId).maybeSingle()
     ]);
 
     if (assignedRes.error) {
@@ -29,6 +30,7 @@ const ClientServicesPanel = {
     this.assigned = assignedRes.data || [];
     this.catalogue = catalogueRes.data || [];
     this.mtd = mtdRes.data || [];
+    this.client = (clientRes && clientRes.data) || {};
     this.containerEl = containerEl;
     this.draw();
   },
@@ -38,29 +40,24 @@ const ClientServicesPanel = {
     const today = new Date().toISOString().slice(0, 10);
     const open = this.mtd.filter(m => m.client_service_id === cs.id && !/submitted|filed|done/i.test(m.status || '')).map(m => m.deadline).sort();
     if (open.length) return { date: open.find(d => d >= today) || open[open.length - 1], est: false };
-    const name = ((cs.services_catalogue && cs.services_catalogue.name) || '').toLowerCase();
-    const ty = /^(\d{4})\/\d{2}$/.exec(pmNormTY(cs.tax_year) || '');
-    if (ty && /self assessment|tax return|\bsa\b|landlord|cis/.test(name)) return { date: `${Number(ty[1]) + 2}-01-31`, est: true };
-    if (cs.period_end && /account|ct600|corporation/.test(name)) {
-      const d = new Date(cs.period_end + 'T00:00:00Z'); d.setUTCMonth(d.getUTCMonth() + 9);
-      return { date: d.toISOString().slice(0, 10), est: true };
-    }
-    if (cs.period_end) return { date: cs.period_end, est: true };
-    return null;
+    const d = pmServiceDeadline(cs, this.client);
+    return d ? { date: d.date, est: true, why: d.why } : null;
   },
 
   draw() {
     const today = new Date().toISOString().slice(0, 10);
     const rows = this.assigned.map(cs => ({ cs, dl: this.nextDeadline(cs) }));
+    const key = (r) => r.cs.work_status === 'submitted' || !r.dl ? '9999' : r.dl.date;
     const active = rows.filter(r => r.cs.status === 'active' || r.cs.status === 'paused')
-      .sort((a, b) => (a.dl ? a.dl.date : '9999') < (b.dl ? b.dl.date : '9999') ? -1 : 1);
+      .sort((a, b) => key(a) < key(b) ? -1 : 1);
     const finished = rows.filter(r => !(r.cs.status === 'active' || r.cs.status === 'paused'));
     const ws = (cs) => `<select class="input input-select" data-work="${cs.id}" style="min-width:150px;">${Object.entries(CLIENT_WORK_STATUSES).map(([k, v]) => `<option value="${k}" ${(cs.work_status || 'not_started') === k ? 'selected' : ''}>${v}</option>`).join('')}</select>`;
-    const dlCell = (dl) => {
-      if (!dl) return '<span class="muted-line">—</span>';
+    const dlCell = (dl, cs) => {
+      if (cs && cs.work_status === 'submitted') return '<span class="pill pill-green">Submitted</span>';
+      if (!dl) return '<span class="muted-line">No fixed deadline</span>';
       const days = Math.round((new Date(dl.date) - new Date(today)) / 86400000);
       const cls = days < 0 ? 'pill-red' : days <= 30 ? 'pill-amber' : 'pill-grey';
-      return `${Fmt.date(dl.date)} <span class="pill ${cls}">${days < 0 ? `${-days}d overdue` : `${days}d`}</span>${dl.est ? '<div class="muted-line" style="font-size:11px;">worked out from the period</div>' : ''}`;
+      return `${Fmt.date(dl.date)} <span class="pill ${cls}">${days < 0 ? `${-days}d overdue` : `${days}d`}</span>${dl.est ? `<div class="muted-line" style="font-size:11px;">${Esc(dl.why || 'worked out')}</div>` : ''}`;
     };
     const table = (list) => `<div style="overflow-x:auto;"><table class="data-table data-table-compact" style="width:100%;">
       <thead><tr><th>Service</th><th>Period</th><th>Next deadline</th><th>Work status</th><th>Service</th><th>Price</th><th></th></tr></thead>
@@ -68,7 +65,7 @@ const ClientServicesPanel = {
         <tr>
           <td><b>${Esc(cs.services_catalogue ? cs.services_catalogue.name : '—')}</b></td>
           <td class="muted-line">${Esc(pmKeyLabel(pmRowKey(cs)) === 'No year' ? '—' : pmKeyLabel(pmRowKey(cs)))}</td>
-          <td>${dlCell(dl)}</td>
+          <td>${dlCell(dl, cs)}</td>
           <td>${ws(cs)}</td>
           <td>${clientServiceStatusPill(cs.status)}</td>
           <td>${Esc(cs.price_label || Fmt.money(cs.custom_price))}</td>

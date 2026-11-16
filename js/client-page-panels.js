@@ -465,3 +465,24 @@ const ClientRegistrationsPanel = {
     });
   },
 };
+
+// ---- Statutory deadline for a client service (UK rules; used by Work → Services) ----
+// Returns { date: 'YYYY-MM-DD', why: 'short reason' } or null when the service has no fixed deadline.
+const pmAddMonths = (iso, m, days) => { const d = new Date(String(iso).slice(0, 10) + 'T12:00:00Z'); const day = d.getUTCDate(); d.setUTCDate(1); d.setUTCMonth(d.getUTCMonth() + m); const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate(); d.setUTCDate(Math.min(day, last)); if (days) d.setUTCDate(d.getUTCDate() + days); return d.toISOString().slice(0, 10); };
+const pmNextOf = (dates) => { const t = new Date().toISOString().slice(0, 10); return dates.sort().find(d => d >= t) || null; };
+const pmServiceDeadline = (cs, client) => {
+  const n = ((cs.services_catalogue && cs.services_catalogue.name) || cs.name || '').toLowerCase();
+  const ty = pmNormTY(cs.tax_year) || (cs.period_end && /-04-0[56]$/.test(cs.period_end) ? pmRowKey(cs) : null);
+  const y = ty ? +ty.slice(0, 4) : null, pe = cs.period_end ? String(cs.period_end).slice(0, 10) : null;
+  const today = new Date(), Y = today.getFullYear();
+  if (/self assessment registration/.test(n)) return y ? { date: `${y + 1}-10-05`, why: 'register by 5 Oct after the tax year' } : null;
+  if (/registration|director id|software|pension setup|bookkeeping|p87|mtd full setup/.test(n)) return null;
+  if (/self assessment|mtd end of year/.test(n)) return y ? { date: `${y + 2}-01-31`, why: 'online return due 31 Jan' } : null;
+  if (/vat return/.test(n)) return pe ? { date: pmAddMonths(pe, 1, 7), why: '1 month + 7 days after the VAT quarter' } : null;
+  if (/mtd/.test(n)) return { date: pmNextOf([Y - 1, Y, Y + 1].flatMap(a => [`${a}-02-07`, `${a}-05-07`, `${a}-08-07`, `${a}-11-07`])), why: 'next quarterly update' };
+  if (/confirmation statement/.test(n)) { const b = pe || (client && client.confirmation_statement_date); return b ? { date: pmAddMonths(b, 0, 14), why: '14 days after the review date' } : null; }
+  if (/accounts|ltd company|ct600|corporation/.test(n)) return pe ? { date: pmAddMonths(pe, 9), why: 'accounts due 9 months after year end' } : null;
+  if (/cis return/.test(n)) return { date: pmNextOf([-1, 0, 1].map(k => pmAddMonths(`${Y}-${String(today.getMonth() + 1).padStart(2, '0')}-19`, k))), why: 'monthly return due 19th' };
+  if (/payroll submission|pension run/.test(n)) return { date: pmNextOf([-1, 0, 1].map(k => pmAddMonths(`${Y}-${String(today.getMonth() + 1).padStart(2, '0')}-19`, k))), why: 'EPS by 19th; FPS on or before payday' };
+  return null;
+};
