@@ -1,6 +1,7 @@
 // Accounted4Tax Practice Manager — Assigned services panel (shown on client detail page)
 
 const CLIENT_SERVICE_STATUSES = ['active', 'paused', 'completed', 'cancelled'];
+const CLIENT_WORK_STATUSES = { not_started: 'Not started', in_progress: 'In progress', awaiting_info: 'Awaiting info', sent_for_approval: 'Sent for approval', approved: 'Approved', submitted: 'Submitted' };
 
 function clientServiceStatusPill(status) {
   const cls = { active: 'pill-green', paused: 'pill-amber', completed: 'pill-grey', cancelled: 'pill-red' }[status] || 'pill-grey';
@@ -11,61 +12,91 @@ const ClientServicesPanel = {
   async render(clientId, containerEl, opts) {
     containerEl.innerHTML = `<p class="muted-line">Loading services…</p>`;
     this.opts = opts || {};
-    this.showAll = false;
+    this.showAll = this.showAll || false;
 
-    const [assignedRes, catalogueRes] = await Promise.all([
+    const [assignedRes, catalogueRes, mtdRes] = await Promise.all([
       sb.from('client_services').select('*, services_catalogue(name, billing_type)').eq('client_id', clientId).order('created_at', { ascending: false }),
-      sb.from('services_catalogue').select('id, name, default_price, price_label, billing_type').order('sort_order', { ascending: true })
+      sb.from('services_catalogue').select('id, name, default_price, price_label, billing_type').order('sort_order', { ascending: true }),
+      sb.from('mtd_submissions').select('client_service_id, deadline, status, quarter_label').eq('client_id', clientId).not('deadline', 'is', null)
     ]);
 
     if (assignedRes.error) {
-      containerEl.innerHTML = `<p class="page-error">Could not load services: ${assignedRes.error.message}</p>`;
+      containerEl.innerHTML = `<p class="page-error">Could not load services: ${Esc(assignedRes.error.message)}</p>`;
       return;
     }
 
     this.clientId = clientId;
     this.assigned = assignedRes.data || [];
     this.catalogue = catalogueRes.data || [];
+    this.mtd = mtdRes.data || [];
     this.containerEl = containerEl;
     this.draw();
   },
 
+  // Closest deadline for a service: an open MTD/return row linked to it, otherwise worked out from the period.
+  nextDeadline(cs) {
+    const today = new Date().toISOString().slice(0, 10);
+    const open = this.mtd.filter(m => m.client_service_id === cs.id && !/submitted|filed|done/i.test(m.status || '')).map(m => m.deadline).sort();
+    if (open.length) return { date: open.find(d => d >= today) || open[open.length - 1], est: false };
+    const name = ((cs.services_catalogue && cs.services_catalogue.name) || '').toLowerCase();
+    const ty = /^(\d{4})\/\d{2}$/.exec(cs.tax_year || '');
+    if (ty && /self assessment|tax return|\bsa\b|landlord|cis/.test(name)) return { date: `${Number(ty[1]) + 2}-01-31`, est: true };
+    if (cs.period_end && /account|ct600|corporation/.test(name)) {
+      const d = new Date(cs.period_end + 'T00:00:00Z'); d.setUTCMonth(d.getUTCMonth() + 9);
+      return { date: d.toISOString().slice(0, 10), est: true };
+    }
+    if (cs.period_end) return { date: cs.period_end, est: true };
+    return null;
+  },
+
   draw() {
-    const limit = this.showAll ? null : this.opts.limit;
-    const rows = limit ? this.assigned.slice(0, limit) : this.assigned;
-    const hasMore = !this.showAll && this.opts.limit && this.assigned.length > this.opts.limit;
+    const today = new Date().toISOString().slice(0, 10);
+    const rows = this.assigned.map(cs => ({ cs, dl: this.nextDeadline(cs) }));
+    const active = rows.filter(r => r.cs.status === 'active' || r.cs.status === 'paused')
+      .sort((a, b) => (a.dl ? a.dl.date : '9999') < (b.dl ? b.dl.date : '9999') ? -1 : 1);
+    const finished = rows.filter(r => !(r.cs.status === 'active' || r.cs.status === 'paused'));
+    const ws = (cs) => `<select class="input input-select" data-work="${cs.id}" style="min-width:150px;">${Object.entries(CLIENT_WORK_STATUSES).map(([k, v]) => `<option value="${k}" ${(cs.work_status || 'not_started') === k ? 'selected' : ''}>${v}</option>`).join('')}</select>`;
+    const dlCell = (dl) => {
+      if (!dl) return '<span class="muted-line">—</span>';
+      const days = Math.round((new Date(dl.date) - new Date(today)) / 86400000);
+      const cls = days < 0 ? 'pill-red' : days <= 30 ? 'pill-amber' : 'pill-grey';
+      return `${Fmt.date(dl.date)} <span class="pill ${cls}">${days < 0 ? `${-days}d overdue` : `${days}d`}</span>${dl.est ? '<div class="muted-line" style="font-size:11px;">worked out from the period</div>' : ''}`;
+    };
+    const table = (list) => `<div style="overflow-x:auto;"><table class="data-table data-table-compact" style="width:100%;">
+      <thead><tr><th>Service</th><th>Period</th><th>Next deadline</th><th>Work status</th><th>Service</th><th>Price</th><th></th></tr></thead>
+      <tbody>${list.map(({ cs, dl }) => `
+        <tr>
+          <td><b>${Esc(cs.services_catalogue ? cs.services_catalogue.name : '—')}</b></td>
+          <td class="muted-line">${Esc(cs.tax_year || (cs.period_end ? 'YE ' + Fmt.date(cs.period_end) : '—'))}</td>
+          <td>${dlCell(dl)}</td>
+          <td>${ws(cs)}</td>
+          <td>${clientServiceStatusPill(cs.status)}</td>
+          <td>${Esc(cs.price_label || Fmt.money(cs.custom_price))}</td>
+          <td class="align-right" style="white-space:nowrap;">
+            <button class="btn btn-secondary btn-sm" data-edit="${cs.id}">Edit</button>
+            <button class="btn btn-danger-outline btn-sm" data-remove="${cs.id}">Remove</button>
+          </td>
+        </tr>`).join('')}</tbody></table></div>`;
 
     this.containerEl.innerHTML = `
       <div class="panel-header-row">
         <button type="button" id="assign-service-btn" class="btn btn-secondary btn-sm">+ Add</button>
       </div>
-      ${rows.length === 0
-        ? `<p class="empty-state">No services assigned yet.</p>`
-        : `<table class="data-table data-table-compact">
-            <thead><tr><th>Service</th><th>Status</th><th>Price</th><th>Tax year</th><th></th></tr></thead>
-            <tbody>
-              ${rows.map(cs => `
-                <tr>
-                  <td>${cs.services_catalogue ? cs.services_catalogue.name : '—'}</td>
-                  <td>${clientServiceStatusPill(cs.status)}</td>
-                  <td>${cs.price_label || Fmt.money(cs.custom_price)}</td>
-                  <td class="muted-line">${cs.tax_year || '—'}</td>
-                  <td class="align-right">
-                    <button class="btn btn-secondary btn-sm" data-edit="${cs.id}">Edit</button>
-                    <button class="btn btn-danger-outline btn-sm" data-remove="${cs.id}">Remove</button>
-                  </td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>`
-      }
-      ${hasMore ? `<div style="padding:8px 0 0;"><a href="#" id="services-view-all">View all (${this.assigned.length}) &rarr;</a></div>` : ''}
+      ${active.length ? table(active) : `<p class="empty-state">No active services.</p>`}
+      ${finished.length ? `<details style="margin-top:10px;" ${this.showAll ? 'open' : ''} id="services-finished"><summary style="cursor:pointer;font-size:13px;font-weight:600;">Completed or cancelled (${finished.length})</summary>${table(finished)}</details>` : ''}
     `;
     document.getElementById('assign-service-btn').addEventListener('click', () => this.openForm(null));
-    const viewAllLink = document.getElementById('services-view-all');
-    if (viewAllLink) {
-      viewAllLink.addEventListener('click', (e) => { e.preventDefault(); this.showAll = true; this.draw(); });
-    }
+    const fin = document.getElementById('services-finished');
+    if (fin) fin.addEventListener('toggle', () => { this.showAll = fin.open; });
+    this.containerEl.querySelectorAll('[data-work]').forEach(sel => {
+      sel.addEventListener('change', async () => {
+        sel.disabled = true;
+        const { error } = await sb.from('client_services').update({ work_status: sel.value }).eq('id', sel.dataset.work);
+        sel.disabled = false;
+        if (error) { alert(`Could not save: ${error.message}`); return; }
+        const cs = this.assigned.find(a => a.id === sel.dataset.work); if (cs) cs.work_status = sel.value;
+      });
+    });
     this.containerEl.querySelectorAll('[data-edit]').forEach(btn => {
       btn.addEventListener('click', () => this.openForm(this.assigned.find(a => a.id === btn.dataset.edit)));
     });
