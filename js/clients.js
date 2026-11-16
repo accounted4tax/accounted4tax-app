@@ -144,59 +144,130 @@ const ClientsPage = {
 
     const { data: client, error } = await sb.from('clients').select('*').eq('id', params.id).single();
     if (error) {
-      el.innerHTML = `<div class="page-error">Could not load client: ${error.message}</div>`;
+      el.innerHTML = `<div class="page-error">Could not load client: ${Esc(error.message)}</div>`;
       return;
     }
+    const id = params.id;
+    const TABS = [['onboarding', 'Onboarding'], ['work', 'Work'], ['contact', 'Client contact'], ['records', 'Records'], ['notes', 'Notes']];
+    let current = 'onboarding';
+    try { const t = localStorage.getItem('pm-client-tab'); if (TABS.some(x => x[0] === t)) current = t; } catch (_) {}
 
     el.innerHTML = `
       <div class="page-back"><a href="#/clients">&larr; Back to clients</a></div>
-
-      <div class="client-overview-header">
-        <div>
-          <h2 style="font-family:'Fraunces',serif;font-size:22px;margin:0;">${Esc(client.full_name)}</h2>
-          <div class="muted-line" style="font-size:13px;margin-top:2px;">${clientTypeLabel(client.client_type)} &middot; ${statusPill(client.status)}</div>
+      <div class="pm-client-head">
+        <div class="pm-client-name">
+          <h2>${Esc(client.full_name)}</h2>
+          <div class="muted-line" style="font-size:13px;margin-top:2px;">${clientTypeLabel(client.client_type)}${client.company_name ? ' &middot; ' + Esc(client.company_name) : ''} &middot; ${statusPill(client.status)}</div>
         </div>
-        <button id="edit-client-btn" class="btn btn-primary">Edit client</button>
-      </div>
-
-      <div class="detail-form" style="margin-bottom:16px;">
-        <div class="form-section" style="border-bottom:none;">
-          <h3>Client details</h3>
-          <div class="form-grid">
-            <div><span class="muted-line" style="font-size:12px;">Email</span><br>${Esc(client.email || '—')}</div>
-            <div><span class="muted-line" style="font-size:12px;">Phone</span><br>${Esc(client.phone || '—')}</div>
-            <div><span class="muted-line" style="font-size:12px;">NI number</span><br>${Esc(client.ni_number || '—')}</div>
-            <div><span class="muted-line" style="font-size:12px;">UTR</span><br>${Esc(client.utr || '—')}</div>
-          </div>
+        <nav class="pm-tabs" role="tablist" aria-label="Client sections">
+          ${TABS.map(([k, label]) => `<button type="button" role="tab" class="pm-tab" data-tab="${k}" aria-selected="${k === current}">${label}<span class="pm-tab-badge" id="badge-${k}" hidden></span></button>`).join('')}
+        </nav>
+        <div class="pm-head-actions">
+          <button type="button" class="btn btn-secondary" id="btn-portal-access">Portal access</button>
+          <button type="button" class="btn btn-danger-outline" id="btn-portal-remove">Remove access</button>
+          <button type="button" class="btn btn-primary" id="edit-client-btn">Edit client</button>
         </div>
       </div>
 
-      <div class="client-panel-grid">
-        <div class="detail-form"><div class="detail-form-header"><h2 style="font-size:15px;">Services</h2></div><div class="form-section" id="panel-services"></div></div>
-        <div class="detail-form"><div class="detail-form-header"><h2 style="font-size:15px;">Tasks</h2></div><div class="form-section" id="panel-tasks"></div></div>
-        <div class="detail-form"><div class="detail-form-header"><h2 style="font-size:15px;">Deadlines</h2></div><div class="form-section" id="panel-deadlines"></div></div>
-        <div class="detail-form"><div class="detail-form-header"><h2 style="font-size:15px;">Notes</h2></div><div class="form-section" id="panel-notes"></div></div>
-        <div class="detail-form" style="grid-column:1 / -1;"><div class="detail-form-header"><h2 style="font-size:15px;">Identity checks (CDD)</h2></div><div class="form-section" id="panel-aml"></div></div>
-        <div class="detail-form" style="grid-column:1 / -1;"><div class="detail-form-header"><h2 style="font-size:15px;">Self Assessment checklist</h2></div><div class="form-section" id="panel-checklist"></div></div>
-        <div class="detail-form" style="grid-column:1 / -1;"><div class="detail-form-header"><h2 style="font-size:15px;">Client portal</h2></div><div class="form-section" id="panel-portal"></div></div>
-        <div class="detail-form" style="grid-column:1 / -1;display:none;" id="wrap-cis"><div class="detail-form-header"><h2 style="font-size:15px;">CIS registration form</h2></div><div class="form-section" id="panel-cis"></div></div>
-        <div class="detail-form" style="grid-column:1 / -1;"><div class="detail-form-header"><h2 style="font-size:15px;">Correspondence</h2></div><div class="form-section" id="panel-correspondence"></div></div>
-        <div class="detail-form" style="grid-column:1 / -1;"><div class="detail-form-header"><h2 style="font-size:15px;">History</h2></div><div class="form-section" id="panel-history"></div></div>
-      </div>
+      <section class="pm-tab-panel" data-panel="onboarding" hidden>
+        <div class="pm-card" id="ob-progress"></div>
+        <div class="pm-card" id="ob-details"></div>
+        <div class="pm-card"><div class="pm-card-head"><h3>Identity checks (CDD)</h3></div><div id="panel-aml"></div></div>
+        <div class="pm-card" id="ob-loe"></div>
+        <div class="pm-card" id="ob-hmrc"></div>
+      </section>
+
+      <section class="pm-tab-panel" data-panel="work" hidden>
+        <div class="pm-card"><div class="pm-card-head"><h3>Registrations</h3></div>
+          <div id="wrap-cis"><div id="panel-cis"></div></div>
+          <p class="muted-line" id="reg-empty" style="font-size:13px;">No registrations in progress. Online CIS registrations appear here; UTR, payroll, VAT, company and CIS contractor registrations will be added next.</p></div>
+        <div class="pm-card"><div class="pm-card-head"><h3>Services</h3></div><div id="panel-services"></div></div>
+        <div class="pm-grid-2">
+          <div class="pm-card"><div class="pm-card-head"><h3>Deadlines</h3></div><div id="panel-deadlines"></div></div>
+          <div class="pm-card"><div class="pm-card-head"><h3>Tasks</h3></div><div id="panel-tasks"></div></div>
+        </div>
+        <div class="pm-card"><div class="pm-card-head"><h3>Self Assessment checklist</h3></div><div id="panel-checklist"></div></div>
+      </section>
+
+      <section class="pm-tab-panel" data-panel="contact" hidden>
+        <div class="pm-contact">
+          <div class="pm-card pm-contact-main" id="panel-portal"></div>
+          <aside class="pm-card pm-contact-side" id="panel-messages" aria-label="Messages"></aside>
+        </div>
+      </section>
+
+      <section class="pm-tab-panel" data-panel="records" hidden>
+        <div class="pm-card" id="panel-approvals"></div>
+        <div class="pm-card" id="panel-timeline"></div>
+      </section>
+
+      <section class="pm-tab-panel" data-panel="notes" hidden>
+        <div class="pm-card"><div class="pm-card-head"><h3>Notes</h3></div><div id="panel-notes"></div></div>
+      </section>
     `;
 
-    document.getElementById('edit-client-btn').addEventListener('click', () => Router.go(`/clients/${params.id}/edit`));
+    const $ = (x) => document.getElementById(x);
+    const loaded = {};
+    const setBadge = (k, text, warn) => { const b = $('badge-' + k); if (!b) return; b.hidden = !text; b.textContent = text || ''; b.classList.toggle('is-warn', !!warn); };
 
-    ClientServicesPanel.render(params.id, document.getElementById('panel-services'), { limit: 5 });
-    ClientTasksPanel.render(params.id, document.getElementById('panel-tasks'), { limit: 5 });
-    ClientDeadlinesPanel.render(params.id, document.getElementById('panel-deadlines'), { limit: 5 });
-    ClientNotesPanel.render(params.id, document.getElementById('panel-notes'), { limit: 5 });
-    ClientAmlPanel.render(params.id, document.getElementById('panel-aml'));
-    ClientChecklistPanel.render(params.id, document.getElementById('panel-checklist'), client);
-    ClientPortalPanel.render(params.id, document.getElementById('panel-portal'), client);
-    ClientCisPanel.render(params.id, document.getElementById('wrap-cis'), document.getElementById('panel-cis'));
-    ClientCorrespondencePanel.render(params.id, document.getElementById('panel-correspondence'), { limit: 5 });
-    ClientHistoryPanel.render(params.id, document.getElementById('panel-history'));
+    const refreshHeader = async () => {
+      const steps = await ClientOnboarding.load(id, client);
+      const done = steps.filter(s => s.state === 'done').length;
+      setBadge('onboarding', `${done}/${steps.length}`, done < steps.length);
+      if (loaded.onboarding) $('ob-progress').innerHTML = ClientOnboarding.html(steps);
+      $('btn-portal-access').textContent = ClientOnboarding.portalActive ? 'Resend portal invite' : 'Portal access';
+      $('btn-portal-remove').disabled = !ClientOnboarding.portalActive;
+      const [tasks, act] = await Promise.all([
+        sb.from('tasks').select('id', { count: 'exact', head: true }).eq('client_id', id).neq('status', 'completed'),
+        sb.rpc('portal_activity'),
+      ]);
+      setBadge('work', tasks.count ? String(tasks.count) : '', false);
+      const a = (act.data || []).find(r => r.client_id === id);
+      const n = a ? a.new_messages + a.new_uploads + a.approved + a.changes : 0;
+      setBadge('contact', n ? `${n} new` : '', true);
+    };
+
+    const loadTab = (k) => {
+      if (loaded[k]) return; loaded[k] = true;
+      if (k === 'onboarding') {
+        $('ob-progress').innerHTML = ClientOnboarding.steps ? ClientOnboarding.html(ClientOnboarding.steps) : '<p class="muted-line">Loading…</p>';
+        ClientDetailsCard.render($('ob-details'), client);
+        ClientAmlPanel.render(id, $('panel-aml'));
+        ClientLoePanel.render(id, $('ob-loe'));
+        ClientHmrcPanel.render(id, $('ob-hmrc'), refreshHeader);
+      } else if (k === 'work') {
+        ClientCisPanel.render(id, $('wrap-cis'), $('panel-cis')).then(() => { $('reg-empty').hidden = $('wrap-cis').style.display !== 'none'; });
+        ClientServicesPanel.render(id, $('panel-services'), {});
+        ClientDeadlinesPanel.render(id, $('panel-deadlines'), {});
+        ClientTasksPanel.render(id, $('panel-tasks'), {});
+        ClientChecklistPanel.render(id, $('panel-checklist'), client);
+      } else if (k === 'contact') {
+        const p = Object.create(ClientPortalPanel); p.onChange = refreshHeader;
+        p.render(id, $('panel-portal'), client, { sections: ['requests', 'files', 'messages'], messagesEl: $('panel-messages') }).then(refreshHeader);
+      } else if (k === 'records') {
+        const p = Object.create(ClientPortalPanel); p.onChange = refreshHeader;
+        p.render(id, $('panel-approvals'), client, { sections: ['approvals'] }).then(refreshHeader);
+        ClientTimelinePanel.render(id, $('panel-timeline'));
+      } else if (k === 'notes') {
+        ClientNotesPanel.render(id, $('panel-notes'), {});
+      }
+    };
+
+    const show = (k) => {
+      current = k;
+      try { localStorage.setItem('pm-client-tab', k); } catch (_) {}
+      el.querySelectorAll('.pm-tab').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === k ? 'true' : 'false'));
+      el.querySelectorAll('.pm-tab-panel').forEach(s => { s.hidden = s.dataset.panel !== k; });
+      loadTab(k);
+    };
+    el.querySelectorAll('.pm-tab').forEach(b => b.addEventListener('click', () => show(b.dataset.tab)));
+
+    $('edit-client-btn').addEventListener('click', () => Router.go(`/clients/${id}/edit`));
+    $('btn-portal-access').addEventListener('click', (e) => ClientPortalPanel.inviteFrom(e.target, id, client, () => { loaded.contact = false; if (current === 'contact') loadTab('contact'); refreshHeader(); }));
+    $('btn-portal-remove').addEventListener('click', (e) => ClientPortalPanel.revokeFrom(e.target, id, () => { refreshHeader(); }));
+
+    show(current);
+    refreshHeader();
   },
 
   async renderEditForm(params) {

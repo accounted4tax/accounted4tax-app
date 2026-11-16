@@ -8,8 +8,14 @@ const PortalKinds = { upload: 'Upload documents', approve: 'Review & approve', c
 const PortalReqStatus = { open: { t: 'Waiting for client', c: 'pill-amber' }, submitted: { t: 'Client replied – to check', c: 'pill-amber' }, done: { t: 'Done', c: 'pill-green' }, cancelled: { t: 'Cancelled', c: 'pill-grey' } };
 
 const ClientPortalPanel = {
-  async render(clientId, containerEl, client) {
+  // opts.sections: which parts to show (default all): 'access','requests','files','messages','approvals'
+  // opts.messagesEl: draw Messages into this element instead (e.g. a column on the right)
+  // Use Object.create(ClientPortalPanel) for each place it is shown on a page.
+  async render(clientId, containerEl, client, opts) {
     this.clientId = clientId; this.containerEl = containerEl; this.client = client || {};
+    this.opts = opts || this.opts || {};
+    this.sections = this.opts.sections || ['access', 'requests', 'files', 'messages', 'approvals'];
+    this.messagesEl = this.opts.messagesEl || null;
     containerEl.innerHTML = `<p class="muted-line">Loading portal…</p>`;
     const [acc, req, docs, msgs, aps] = await Promise.all([
       sb.from('portal_access').select('id,invited_email,created_at,revoked_at,lang').eq('client_id', clientId).order('created_at', { ascending: false }),
@@ -113,21 +119,26 @@ const ClientPortalPanel = {
       ${this.approvals.map(a => { const doc = this.docs.find(d => d.id === a.document_id); return `<tr><td>${Fmt.date(a.created_at)} ${new Date(a.created_at).toTimeString().slice(0, 5)}</td><td>${a.decision === 'approved' ? '<span class="pill pill-green">Approved</span>' : '<span class="pill pill-amber">Changes requested</span>'}${a.comment ? `<div class="muted-line" style="white-space:pre-wrap;">${Esc(a.comment)}</div>` : ''}</td><td>${Esc(a.user_email)}</td><td>${Esc(doc ? doc.file_name : '—')}${doc ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;"><button type="button" class="btn btn-secondary btn-sm" data-dl="${doc.id}">Open</button>${a.document_sha256 ? `<button type="button" class="btn btn-secondary btn-sm" data-check="${a.id}">Check</button>` : ''}</div><div class="muted-line" style="font-size:11.5px;margin-top:4px;" data-check-result="${a.id}"></div>` : ''}</td><td style="font-family:monospace;font-size:11px;word-break:break-all;">${Esc(a.document_sha256 || '—')}</td><td>${Esc(a.ip_address || '—')}</td></tr>`; }).join('')}
       </tbody></table></div>` : `<p class="empty-state">No approvals yet.</p>`;
 
+    const has = (k) => this.sections.includes(k);
+    const msgTitle = `Messages${unread ? ` <span class="pill pill-amber">${unread} new</span>` : ''}`;
     this.containerEl.innerHTML =
-      sec('Access', accessHtml) +
-      sec(`Requests to the client`, reqHtml) +
-      sec('Files', filesHtml) +
-      sec(`Messages${unread ? ` <span class="pill pill-amber">${unread} new</span>` : ''}`, msgHtml) +
-      sec('Approval records', apHtml);
+      (has('access') ? sec('Access', accessHtml) : '') +
+      (has('requests') ? sec(`Requests to the client`, reqHtml) : '') +
+      (has('files') ? sec('Files', filesHtml) : '') +
+      (has('messages') && !this.messagesEl ? sec(msgTitle, msgHtml) : '') +
+      (has('approvals') ? sec('Approval records', apHtml) : '');
+    if (has('messages') && this.messagesEl) {
+      this.messagesEl.innerHTML = `<h3 style="font-size:15px;margin:0 0 8px;">${msgTitle}</h3>${msgHtml.replace('max-height:320px', 'height:520px')}`;
+    }
     this.wire();
     const th = document.getElementById('pp-thread'); if (th) th.scrollTop = th.scrollHeight;
-    if (this.approvals.some(a => !a.seen_by_practice_at)) sb.from('portal_approvals').update({ seen_by_practice_at: new Date().toISOString() }).eq('client_id', this.clientId).is('seen_by_practice_at', null).then(() => {});
-    if (unread) sb.from('portal_messages').update({ read_by_practice_at: new Date().toISOString() }).eq('client_id', this.clientId).eq('sender', 'client').is('read_by_practice_at', null).then(() => {});
+    if (has('approvals') && this.approvals.some(a => !a.seen_by_practice_at)) sb.from('portal_approvals').update({ seen_by_practice_at: new Date().toISOString() }).eq('client_id', this.clientId).is('seen_by_practice_at', null).then(() => {});
+    if (has('messages') && unread) sb.from('portal_messages').update({ read_by_practice_at: new Date().toISOString() }).eq('client_id', this.clientId).eq('sender', 'client').is('read_by_practice_at', null).then(() => {});
   },
 
   wire() {
     const $ = (id) => document.getElementById(id), C = this.containerEl;
-    const reload = () => this.render(this.clientId, this.containerEl, this.client);
+    const reload = () => { this.render(this.clientId, this.containerEl, this.client, this.opts); if (this.onChange) this.onChange(); };
     const busy = (btn, on, text) => { if (!btn) return; btn.disabled = on; if (text) { btn.dataset.t = btn.dataset.t || btn.textContent; btn.textContent = on ? text : btn.dataset.t; } };
 
     const invite = async (btn) => {
@@ -152,6 +163,7 @@ const ClientPortalPanel = {
 
     // request form
     const rf = $('pp-req-form');
+    if (rf) {
     const kindSel = rf.querySelector('[name="kind"]');
     kindSel.addEventListener('change', () => { $('pp-doc-field').style.display = kindSel.value === 'approve' ? '' : 'none'; });
     rf.addEventListener('submit', async (e) => {
@@ -167,6 +179,7 @@ const ClientPortalPanel = {
       if (f.get('email')) this.notify(kind === 'approve' ? 'approve' : 'request');
       reload();
     });
+    }
     C.querySelectorAll('[data-req-done]').forEach(b => b.addEventListener('click', async () => {
       busy(b, true); await sb.from('portal_requests').update({ status: 'done', completed_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', b.dataset.reqDone); reload();
     }));
@@ -211,7 +224,7 @@ const ClientPortalPanel = {
       if (b.dataset.on === '1') this.notify('document');
       reload();
     }));
-    $('pp-share-form').addEventListener('submit', async (e) => {
+    if ($('pp-share-form')) $('pp-share-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const form = e.target, file = form.querySelector('[name="file"]').files[0], approve = form.querySelector('[name="approve"]').checked;
       if (!file) return;
@@ -233,7 +246,7 @@ const ClientPortalPanel = {
     });
 
     // messages
-    $('pp-msg-form').addEventListener('submit', async (e) => {
+    if ($('pp-msg-form')) $('pp-msg-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const ta = e.target.querySelector('textarea'), body = ta.value.trim(); if (!body) return;
       const btn = e.target.querySelector('button'); busy(btn, true, 'Sending…');
@@ -242,5 +255,28 @@ const ClientPortalPanel = {
       this.notify('message');
       reload();
     });
+  },
+
+  // Header buttons on the client page: invite (or resend) and remove access without the Access section.
+  async inviteFrom(btn, clientId, client, done) {
+    const p = Object.create(ClientPortalPanel); p.clientId = clientId; p.client = client || {};
+    const to = prompt('Email address the client will sign in with:', (p.client.portal_email || p.client.email || '').trim());
+    if (to === null) return;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to.trim())) { alert('Please enter a valid email address.'); return; }
+    const ro = confirm('Send the invitation in Romanian?\n\nOK = Romanian   ·   Cancel = English');
+    const old = btn.textContent; btn.disabled = true; btn.textContent = 'Sending…';
+    try {
+      const r = await p.call({ action: 'invite', email: to.trim(), lang: ro ? 'ro' : 'en' });
+      alert(r.emailed ? `Invitation emailed to ${r.email}.` : `Access set up for ${r.email}, but the email could not be sent. Tell the client to go to the portal and sign in with this email.`);
+      if (done) done();
+    } catch (e) { alert(`Could not invite: ${e.message}`); }
+    btn.disabled = false; btn.textContent = old;
+  },
+  async revokeFrom(btn, clientId, done) {
+    if (!confirm('Remove this client\'s access to the portal? They will no longer be able to sign in to see this record.')) return;
+    const p = Object.create(ClientPortalPanel); p.clientId = clientId;
+    const old = btn.textContent; btn.disabled = true; btn.textContent = 'Removing…';
+    try { await p.call({ action: 'revoke' }); if (done) done(); } catch (e) { alert(e.message); }
+    btn.disabled = false; btn.textContent = old;
   },
 };
