@@ -84,31 +84,68 @@ const ClientLoePanel = {
 };
 
 /* ---------------- HMRC authorisations ---------------- */
-const HmrcTax = { sa: 'Self Assessment', ct: 'Corporation Tax', paye: 'PAYE', vat: 'VAT', cis: 'CIS', mtd: 'MTD Income Tax' };
-const HmrcStatus = { needed: ['Needed', 'pill-amber'], link_sent: ['Link sent – waiting', 'pill-amber'], authorised: ['Authorised', 'pill-green'], not_needed: ['Not needed', 'pill-grey'] };
-const HmrcMethod = { asa_link: 'Online link (Agent Services)', paper_64_8: 'Paper 64-8' };
+// Routes (method) per tax:
+//   code_request  – we request an authorisation code from HMRC; it is posted to the client; we enter it (SA, CT, PAYE, CIS)
+//   bta_agent_id  – client adds us in their business tax account using our Agent ID; we email the steps (SA, PAYE, CIS)
+//   asa_link      – we create a link in Agent Services and email it to the client (VAT, MTD Income Tax, Income Record Viewer)
+//   paper_64_8    – Eduard prints the 64-8 and posts it (SA, CT, PAYE, CIS)
+// Emails go through the hmrc-auth-email Edge Function; the Agent ID stays in the database, never in this file.
+const HmrcTax = { sa: 'Self Assessment', ct: 'Corporation Tax', paye: 'PAYE', cis: 'CIS', vat: 'VAT', mtd: 'MTD Income Tax', irv: 'Income Record Viewer' };
+const HmrcMethod = { code_request: 'HMRC code (we request it)', bta_agent_id: 'Client adds us (Agent ID)', asa_link: 'Online link (Agent Services)', paper_64_8: 'Paper 64-8 (we post it)' };
+const HmrcMethodsFor = { sa: ['bta_agent_id', 'code_request', 'paper_64_8'], ct: ['code_request', 'paper_64_8'], paye: ['bta_agent_id', 'code_request', 'paper_64_8'], cis: ['bta_agent_id', 'code_request', 'paper_64_8'], vat: ['asa_link'], mtd: ['asa_link'], irv: ['asa_link'] };
+const HmrcStatus = { needed: ['To do', 'pill-amber'], code_requested: ['Code requested – waiting', 'pill-blue'], link_sent: ['Sent to client – waiting', 'pill-blue'], form_posted: ['64-8 posted – waiting', 'pill-blue'], authorised: ['Authorised', 'pill-green'], not_needed: ['Not needed', 'pill-grey'] };
 const ClientHmrcPanel = {
   async render(clientId, el, onChange) {
     this.clientId = clientId; this.el = el; this.onChange = onChange;
-    const { data, error } = await sb.from('qs_hmrc_authorisations').select('*').eq('client_id', clientId).order('created_at');
-    if (error) { el.innerHTML = `<p class="page-error">Could not load HMRC authorisations: ${Esc(error.message)}</p>`; return; }
-    this.rows = data || [];
+    const [res, acc, cl] = await Promise.all([
+      sb.from('qs_hmrc_authorisations').select('*').eq('client_id', clientId).order('created_at'),
+      sb.from('portal_access').select('lang').eq('client_id', clientId).is('revoked_at', null).limit(1),
+      sb.from('clients').select('email,full_name').eq('id', clientId).maybeSingle(),
+    ]);
+    if (res.error) { el.innerHTML = `<p class="page-error">Could not load HMRC authorisations: ${Esc(res.error.message)}</p>`; return; }
+    this.rows = res.data || []; this.lang = acc.data && acc.data[0] ? acc.data[0].lang : null; this.client = (cl && cl.data) || {};
     const missing = Object.keys(HmrcTax).filter(t => !this.rows.some(r => r.tax_type === t));
+    const d = (x) => x ? Fmt.date(x) : '';
     el.innerHTML = `<div class="pm-card-head"><h3>HMRC authorisations</h3>
         ${missing.length ? `<span style="display:flex;gap:6px;align-items:center;"><select class="input" id="hmrc-add-type" style="min-width:170px;">${missing.map(t => `<option value="${t}">${HmrcTax[t]}</option>`).join('')}</select><button type="button" class="btn btn-secondary btn-sm" id="hmrc-add">+ Add tax</button></span>` : ''}</div>
-      ${this.rows.length ? `<div style="overflow-x:auto;"><table class="data-table" style="width:100%;font-size:13px;min-width:760px;"><thead><tr><th>Tax</th><th>Method</th><th>Status</th><th>Last action</th><th>Authorisation link / 64-8</th></tr></thead><tbody>
-        ${this.rows.map(r => { const st = HmrcStatus[r.status] || [r.status, 'pill-grey'];
-          const last = r.status === 'authorised' && r.authorised_date ? `Authorised ${Fmt.date(r.authorised_date)}` : r.link_sent_at ? `Sent ${Fmt.date(r.link_sent_at)}` : PM_DASH;
+      ${this.rows.length ? `<div style="overflow-x:auto;"><table class="data-table" style="width:100%;font-size:13px;min-width:820px;"><thead><tr><th>Tax</th><th>How</th><th>Status</th><th>Last action</th><th>Next step</th></tr></thead><tbody>
+        ${this.rows.map(r => {
+          const st = HmrcStatus[r.status] || [r.status, 'pill-grey'];
+          const opts = [...new Set([...(HmrcMethodsFor[r.tax_type] || []), r.method])];
+          const last = r.status === 'authorised' && r.authorised_date ? `Authorised ${d(r.authorised_date)}`
+            : r.status === 'form_posted' && r.posted_at ? `64-8 posted ${d(r.posted_at)}`
+            : r.status === 'code_requested' && r.code_requested_at ? `Code requested ${d(r.code_requested_at)}`
+            : r.link_sent_at ? `Emailed ${d(r.link_sent_at)}` : PM_DASH;
+          const open = !['authorised', 'not_needed'].includes(r.status);
+          const btn = (attr, text, primary) => `<button type="button" class="btn ${primary ? 'btn-primary' : 'btn-secondary'} btn-sm" ${attr}="${r.id}">${text}</button>`;
+          const acts = [];
+          if (open) {
+            if (r.method === 'code_request') acts.push(btn('data-coderq', r.status === 'code_requested' ? 'Requested again' : 'Mark code requested', r.status === 'needed'));
+            if (r.method === 'bta_agent_id') acts.push(btn('data-agentid', r.status === 'link_sent' ? 'Send Agent ID again' : 'Send Agent Identifier', r.status === 'needed'));
+            if (r.method === 'asa_link') {
+              acts.push(btn('data-setlink', r.auth_link ? 'Change link' : 'Add link', !r.auth_link));
+              if (r.auth_link) acts.push(btn('data-emaillink', r.status === 'link_sent' ? 'Email link again' : 'Email link to client', r.status === 'needed'), btn('data-copy', 'Copy link'));
+            }
+            if (r.method === 'paper_64_8') {
+              if (r.form_64_8_path) acts.push(btn('data-648', '64-8 PDF'));
+              acts.push(btn('data-posted', r.status === 'form_posted' ? 'Posted again' : 'Mark 64-8 posted', r.status === 'needed'));
+            }
+            if (r.status !== 'needed') acts.push(btn('data-authorised', 'Mark authorised'));
+          } else if (r.method === 'paper_64_8' && r.form_64_8_path) acts.push(btn('data-648', '64-8 PDF'));
           return `<tr data-row="${r.id}">
             <td><b>${HmrcTax[r.tax_type] || Esc(r.tax_type)}</b></td>
-            <td><select class="input" data-method="${r.id}">${Object.entries(HmrcMethod).map(([k, v]) => `<option value="${k}" ${r.method === k ? 'selected' : ''}>${v}</option>`).join('')}</select></td>
-            <td><select class="input" data-status="${r.id}">${Object.entries(HmrcStatus).map(([k, v]) => `<option value="${k}" ${r.status === k ? 'selected' : ''}>${v[0]}</option>`).join('')}</select></td>
+            <td><select class="input" data-method="${r.id}" style="min-width:200px;">${opts.map(k => `<option value="${k}" ${r.method === k ? 'selected' : ''}>${HmrcMethod[k] || k}</option>`).join('')}</select></td>
+            <td><select class="input" data-status="${r.id}" style="min-width:170px;">${Object.entries(HmrcStatus).map(([k, v]) => `<option value="${k}" ${r.status === k ? 'selected' : ''}>${v[0]}</option>`).join('')}</select></td>
             <td>${last}</td>
-            <td style="white-space:nowrap;">${r.auth_link ? `<button type="button" class="btn btn-secondary btn-sm" data-copy="${r.id}">Copy link</button>` : ''}
-              <button type="button" class="btn btn-secondary btn-sm" data-setlink="${r.id}">${r.auth_link ? 'Change link' : 'Add link'}</button>
-              ${r.form_64_8_path ? ` <button type="button" class="btn btn-secondary btn-sm" data-648="${r.id}">64-8 PDF</button>` : ''}</td></tr>`; }).join('')}
+            <td style="white-space:nowrap;">${acts.join(' ') || PM_DASH}</td></tr>`; }).join('')}
         </tbody></table></div>` : `<p class="empty-state">No HMRC authorisations recorded. Add each tax you act on.</p>`}
-      <p class="muted-line" style="font-size:12px;margin-top:8px;">Sending the 64-8 or the authorisation link by email, and requesting the Self Assessment code, will be added as buttons here once you confirm the exact wording you use.</p>`;
+      <details style="margin-top:8px;font-size:12.5px;"><summary style="cursor:pointer;font-weight:600;">How each route works</summary>
+        <ul class="muted-line" style="margin:6px 0 0;padding-left:18px;line-height:1.6;">
+          <li><b>HMRC code</b> (SA, CT, PAYE, CIS): request the code in Agent Services, click <i>Mark code requested</i>. HMRC posts it to the client; when they give it to you, enter it in Agent Services and click <i>Mark authorised</i>.</li>
+          <li><b>Client adds us (Agent ID)</b> (SA, PAYE, CIS): click <i>Send Agent Identifier</i>. The client gets an email with the steps and our Agent ID. One email covers every tax on this route.</li>
+          <li><b>Online link</b> (VAT, MTD Income Tax, Income Record Viewer): create the request in Agent Services, click <i>Add link</i> and paste it, then <i>Email link to client</i>.</li>
+          <li><b>Paper 64-8</b>: print it, post it, then click <i>Mark 64-8 posted</i>.</li>
+        </ul></details>`;
     this.wire();
   },
   async save(id, patch) {
@@ -116,27 +153,65 @@ const ClientHmrcPanel = {
     if (error) alert(`Could not save: ${error.message}`);
     this.render(this.clientId, this.el, this.onChange); if (this.onChange) this.onChange();
   },
+  askLang() {
+    if (this.lang) return this.lang;
+    return confirm('Send the email in Romanian?\n\nOK = Romanian   ·   Cancel = English') ? 'ro' : 'en';
+  },
+  async send(btn, action, ids, what) {
+    if (!this.client.email) { alert('This client has no email address. Add it under Edit client first.'); return; }
+    if (!confirm(`Email ${what} to ${this.client.email}?`)) return;
+    const lang = this.askLang();
+    const old = btn.textContent; btn.disabled = true; btn.textContent = 'Sending…';
+    const res = await sb.functions.invoke('hmrc-auth-email', { body: { action, client_id: this.clientId, ids, lang } });
+    if (res.error) {
+      let m = res.error.message || 'Something went wrong';
+      try { const b = await res.error.context.json(); if (b.error) m = b.error.message; } catch (_) {}
+      alert(`Not sent: ${m}`); btn.disabled = false; btn.textContent = old; return;
+    }
+    alert(`Sent to ${res.data.to} (${res.data.taxes}).`);
+    this.render(this.clientId, this.el, this.onChange); if (this.onChange) this.onChange();
+  },
   wire() {
-    const el = this.el;
+    const el = this.el, today = () => new Date().toISOString().slice(0, 10);
+    const askDate = (q) => { const v = prompt(q + ' (YYYY-MM-DD)', today()); if (v === null) return null; return /^\d{4}-\d{2}-\d{2}$/.test(v.trim()) ? v.trim() : (alert('Please use the format YYYY-MM-DD.'), null); };
     const add = el.querySelector('#hmrc-add');
     if (add) add.addEventListener('click', async () => {
       const t = el.querySelector('#hmrc-add-type').value;
-      const { error } = await sb.from('qs_hmrc_authorisations').insert({ client_id: this.clientId, tax_type: t, method: 'asa_link', status: 'needed' });
+      const { error } = await sb.from('qs_hmrc_authorisations').insert({ client_id: this.clientId, tax_type: t, method: HmrcMethodsFor[t][0], status: 'needed' });
       if (error) alert(`Could not add: ${error.message}`);
       this.render(this.clientId, el, this.onChange); if (this.onChange) this.onChange();
     });
     el.querySelectorAll('[data-status]').forEach(s => s.addEventListener('change', () => {
-      const patch = { status: s.value };
-      if (s.value === 'authorised') patch.authorised_date = new Date().toISOString().slice(0, 10);
-      if (s.value === 'link_sent') patch.link_sent_at = new Date().toISOString();
+      const patch = { status: s.value }, now = new Date().toISOString();
+      if (s.value === 'authorised') patch.authorised_date = today();
+      if (s.value === 'link_sent') patch.link_sent_at = now;
+      if (s.value === 'code_requested') patch.code_requested_at = now;
+      if (s.value === 'form_posted') patch.posted_at = now;
       this.save(s.dataset.status, patch);
     }));
     el.querySelectorAll('[data-method]').forEach(s => s.addEventListener('change', () => this.save(s.dataset.method, { method: s.value })));
+    el.querySelectorAll('[data-coderq]').forEach(b => b.addEventListener('click', () => {
+      const v = askDate('Date you requested the code from HMRC'); if (v) this.save(b.dataset.coderq, { status: 'code_requested', code_requested_at: v + 'T12:00:00Z' });
+    }));
+    el.querySelectorAll('[data-posted]').forEach(b => b.addEventListener('click', () => {
+      const v = askDate('Date you posted the 64-8'); if (v) this.save(b.dataset.posted, { status: 'form_posted', posted_at: v + 'T12:00:00Z' });
+    }));
+    el.querySelectorAll('[data-authorised]').forEach(b => b.addEventListener('click', () => {
+      const v = askDate('Date HMRC confirmed the authorisation'); if (v) this.save(b.dataset.authorised, { status: 'authorised', authorised_date: v });
+    }));
+    el.querySelectorAll('[data-agentid]').forEach(b => b.addEventListener('click', () => {
+      const rows = this.rows.filter(r => r.method === 'bta_agent_id' && !['authorised', 'not_needed'].includes(r.status));
+      this.send(b, 'agent_id', rows.map(r => r.id), `the Agent ID instructions for ${rows.map(r => HmrcTax[r.tax_type]).join(', ')}`);
+    }));
+    el.querySelectorAll('[data-emaillink]').forEach(b => b.addEventListener('click', () => {
+      const r = this.rows.find(x => x.id === b.dataset.emaillink);
+      this.send(b, 'asa_link', [r.id], `the HMRC authorisation link for ${HmrcTax[r.tax_type]}`);
+    }));
     el.querySelectorAll('[data-setlink]').forEach(b => b.addEventListener('click', () => {
       const r = this.rows.find(x => x.id === b.dataset.setlink);
-      const v = prompt('Authorisation link (from HMRC Agent Services):', (r && r.auth_link) || '');
+      const v = prompt('Paste the authorisation link from HMRC Agent Services:', (r && r.auth_link) || '');
       if (v === null) return;
-      if (v.trim() && !/^https:\/\//.test(v.trim())) { alert('Please paste a link starting with https://'); return; }
+      if (v.trim() && !/^https:\/\/([a-z0-9-]+\.)*tax\.service\.gov\.uk\//i.test(v.trim())) { alert('Please paste the HMRC link. It starts with https://www.tax.service.gov.uk/'); return; }
       this.save(b.dataset.setlink, { auth_link: v.trim() || null });
     }));
     el.querySelectorAll('[data-copy]').forEach(b => b.addEventListener('click', async () => {
