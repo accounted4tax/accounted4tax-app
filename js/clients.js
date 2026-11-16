@@ -112,14 +112,14 @@ const ClientsPage = {
             <tr class="clickable-row" data-id="${c.id}">
               <td>
                 <div class="cell-with-avatar">
-                  <span class="avatar">${Fmt.initials(c.full_name)}</span>
-                  <span>${c.full_name}</span>
+                  <span class="avatar">${Esc(Fmt.initials(c.full_name))}</span>
+                  <span>${Esc(c.full_name)}</span>
                 </div>
               </td>
               <td>${clientTypeLabel(c.client_type)}</td>
               <td>${statusPill(c.status)}</td>
-              <td class="muted-line">${c.email || '—'}</td>
-              <td class="muted-line">${c.phone || '—'}</td>
+              <td class="muted-line">${Esc(c.email || '—')}</td>
+              <td class="muted-line">${Esc(c.phone || '—')}</td>
               <td class="muted-line">${Fmt.date(c.client_since)}</td>
             </tr>
           `).join('')}
@@ -147,7 +147,7 @@ const ClientsPage = {
 
       <div class="client-overview-header">
         <div>
-          <h2 style="font-family:'Fraunces',serif;font-size:22px;margin:0;">${client.full_name}</h2>
+          <h2 style="font-family:'Fraunces',serif;font-size:22px;margin:0;">${Esc(client.full_name)}</h2>
           <div class="muted-line" style="font-size:13px;margin-top:2px;">${clientTypeLabel(client.client_type)} &middot; ${statusPill(client.status)}</div>
         </div>
         <button id="edit-client-btn" class="btn btn-primary">Edit client</button>
@@ -157,10 +157,10 @@ const ClientsPage = {
         <div class="form-section" style="border-bottom:none;">
           <h3>Client details</h3>
           <div class="form-grid">
-            <div><span class="muted-line" style="font-size:12px;">Email</span><br>${client.email || '—'}</div>
-            <div><span class="muted-line" style="font-size:12px;">Phone</span><br>${client.phone || '—'}</div>
-            <div><span class="muted-line" style="font-size:12px;">NI number</span><br>${client.ni_number || '—'}</div>
-            <div><span class="muted-line" style="font-size:12px;">UTR</span><br>${client.utr || '—'}</div>
+            <div><span class="muted-line" style="font-size:12px;">Email</span><br>${Esc(client.email || '—')}</div>
+            <div><span class="muted-line" style="font-size:12px;">Phone</span><br>${Esc(client.phone || '—')}</div>
+            <div><span class="muted-line" style="font-size:12px;">NI number</span><br>${Esc(client.ni_number || '—')}</div>
+            <div><span class="muted-line" style="font-size:12px;">UTR</span><br>${Esc(client.utr || '—')}</div>
           </div>
         </div>
       </div>
@@ -172,6 +172,7 @@ const ClientsPage = {
         <div class="detail-form"><div class="detail-form-header"><h2 style="font-size:15px;">Notes</h2></div><div class="form-section" id="panel-notes"></div></div>
         <div class="detail-form" style="grid-column:1 / -1;"><div class="detail-form-header"><h2 style="font-size:15px;">Identity checks (CDD)</h2></div><div class="form-section" id="panel-aml"></div></div>
         <div class="detail-form" style="grid-column:1 / -1;"><div class="detail-form-header"><h2 style="font-size:15px;">Self Assessment checklist</h2></div><div class="form-section" id="panel-checklist"></div></div>
+        <div class="detail-form" style="grid-column:1 / -1;"><div class="detail-form-header"><h2 style="font-size:15px;">Client portal</h2></div><div class="form-section" id="panel-portal"></div></div>
         <div class="detail-form" style="grid-column:1 / -1;display:none;" id="wrap-cis"><div class="detail-form-header"><h2 style="font-size:15px;">CIS registration form</h2></div><div class="form-section" id="panel-cis"></div></div>
         <div class="detail-form" style="grid-column:1 / -1;"><div class="detail-form-header"><h2 style="font-size:15px;">Correspondence</h2></div><div class="form-section" id="panel-correspondence"></div></div>
         <div class="detail-form" style="grid-column:1 / -1;"><div class="detail-form-header"><h2 style="font-size:15px;">History</h2></div><div class="form-section" id="panel-history"></div></div>
@@ -186,6 +187,7 @@ const ClientsPage = {
     ClientNotesPanel.render(params.id, document.getElementById('panel-notes'), { limit: 5 });
     ClientAmlPanel.render(params.id, document.getElementById('panel-aml'));
     ClientChecklistPanel.render(params.id, document.getElementById('panel-checklist'), client);
+    ClientPortalPanel.render(params.id, document.getElementById('panel-portal'), client);
     ClientCisPanel.render(params.id, document.getElementById('wrap-cis'), document.getElementById('panel-cis'));
     ClientCorrespondencePanel.render(params.id, document.getElementById('panel-correspondence'), { limit: 5 });
     ClientHistoryPanel.render(params.id, document.getElementById('panel-history'));
@@ -220,7 +222,7 @@ const ClientsPage = {
       </div>
       <form id="client-form" class="detail-form">
         <div class="detail-form-header">
-          <h2>${isNew ? 'New client' : `Edit ${client.full_name}`}</h2>
+          <h2>${isNew ? 'New client' : `Edit ${Esc(client.full_name)}`}</h2>
           <div class="detail-form-actions">
             ${!isNew ? `<button type="button" id="delete-client-btn" class="btn btn-danger-outline">Delete</button>` : ''}
             <button type="submit" class="btn btn-primary">${isNew ? 'Create client' : 'Save changes'}</button>
@@ -278,7 +280,7 @@ const ClientsPage = {
 
         <div class="form-section">
           <h3>Notes</h3>
-          <textarea name="notes_general" class="input textarea" rows="4">${client.notes_general || ''}</textarea>
+          <textarea name="notes_general" class="input textarea" rows="4">${Esc(client.notes_general || '')}</textarea>
         </div>
       </form>
     `;
@@ -293,7 +295,7 @@ const ClientsPage = {
     return `
       <label class="form-field">
         <span>${label}${required ? ' *' : ''}</span>
-        <input type="${type}" name="${name}" class="input" value="${value ?? ''}" ${required ? 'required' : ''} />
+        <input type="${type}" name="${name}" class="input" value="${Esc(value ?? '')}" ${required ? 'required' : ''} />
       </label>
     `;
   },

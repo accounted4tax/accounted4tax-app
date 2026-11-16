@@ -36,7 +36,7 @@ const ClientNotesPanel = {
                 <span class="pill pill-grey">${n.note_type}</span>
                 <span class="muted-line" style="font-size:12px;">${Fmt.date(n.created_at)}</span>
               </div>
-              <div style="font-size:13px;margin-top:4px;">${n.body}</div>
+              <div style="font-size:13px;margin-top:4px;white-space:pre-wrap;">${Esc(n.body)}</div>
             </div>
           `).join('')
       }
