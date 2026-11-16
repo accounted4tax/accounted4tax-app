@@ -110,7 +110,7 @@ const ClientPortalPanel = {
 
     // 5. approvals evidence
     const apHtml = this.approvals.length ? `<div style="overflow-x:auto;"><table class="data-table" style="width:100%;font-size:12.5px;"><thead><tr><th>When</th><th>Decision</th><th>Signed in as</th><th>Document</th><th>Fingerprint (SHA-256)</th><th>IP</th></tr></thead><tbody>
-      ${this.approvals.map(a => { const doc = this.docs.find(d => d.id === a.document_id); return `<tr><td>${Fmt.date(a.created_at)} ${new Date(a.created_at).toTimeString().slice(0, 5)}</td><td>${a.decision === 'approved' ? '<span class="pill pill-green">Approved</span>' : '<span class="pill pill-amber">Changes requested</span>'}${a.comment ? `<div class="muted-line" style="white-space:pre-wrap;">${Esc(a.comment)}</div>` : ''}</td><td>${Esc(a.user_email)}</td><td>${Esc(doc ? doc.file_name : '—')}</td><td style="font-family:monospace;font-size:11px;word-break:break-all;">${Esc(a.document_sha256 || '—')}</td><td>${Esc(a.ip_address || '—')}</td></tr>`; }).join('')}
+      ${this.approvals.map(a => { const doc = this.docs.find(d => d.id === a.document_id); return `<tr><td>${Fmt.date(a.created_at)} ${new Date(a.created_at).toTimeString().slice(0, 5)}</td><td>${a.decision === 'approved' ? '<span class="pill pill-green">Approved</span>' : '<span class="pill pill-amber">Changes requested</span>'}${a.comment ? `<div class="muted-line" style="white-space:pre-wrap;">${Esc(a.comment)}</div>` : ''}</td><td>${Esc(a.user_email)}</td><td>${Esc(doc ? doc.file_name : '—')}${doc ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;"><button type="button" class="btn btn-secondary btn-sm" data-dl="${doc.id}">Open</button>${a.document_sha256 ? `<button type="button" class="btn btn-secondary btn-sm" data-check="${a.id}">Check</button>` : ''}</div><div class="muted-line" style="font-size:11.5px;margin-top:4px;" data-check-result="${a.id}"></div>` : ''}</td><td style="font-family:monospace;font-size:11px;word-break:break-all;">${Esc(a.document_sha256 || '—')}</td><td>${Esc(a.ip_address || '—')}</td></tr>`; }).join('')}
       </tbody></table></div>` : `<p class="empty-state">No approvals yet.</p>`;
 
     this.containerEl.innerHTML =
@@ -180,6 +180,22 @@ const ClientPortalPanel = {
       const { data, error } = await sb.storage.from('portal-docs').createSignedUrl(d.file_url.slice(12), 60, { download: d.file_name || true });
       if (error) { alert(`Could not open: ${error.message}`); return; }
       window.open(data.signedUrl, '_blank', 'noopener');
+    }));
+    C.querySelectorAll('[data-check]').forEach(b => b.addEventListener('click', async () => {
+      const a = this.approvals.find(x => x.id === b.dataset.check), d = a && this.docs.find(x => x.id === a.document_id);
+      const out = C.querySelector(`[data-check-result="${b.dataset.check}"]`);
+      if (!d || !out) return;
+      busy(b, true, 'Checking…');
+      try {
+        const { data: blob, error } = await sb.storage.from('portal-docs').download(d.file_url.slice(12));
+        if (error) throw error;
+        const buf = await crypto.subtle.digest('SHA-256', await blob.arrayBuffer());
+        const hex = Array.from(new Uint8Array(buf)).map(x => x.toString(16).padStart(2, '0')).join('');
+        out.innerHTML = hex === a.document_sha256
+          ? '<span class="pill pill-green">Matches</span> The stored file is exactly the one the client approved.'
+          : '<span class="pill pill-red">Different</span> The stored file has changed since it was approved.';
+      } catch (err) { out.textContent = `Could not check: ${err.message}`; }
+      busy(b, false, 'x');
     }));
     C.querySelectorAll('[data-verify]').forEach(b => b.addEventListener('click', async () => {
       busy(b, true); await sb.from('documents').update({ verified: true, verified_at: new Date().toISOString() }).eq('id', b.dataset.verify); reload();
