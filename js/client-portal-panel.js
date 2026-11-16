@@ -199,7 +199,7 @@ const ClientPortalPanel = {
       const path = `${this.clientId}/shared/${new Date().toISOString().replace(/[:.]/g, '-')}-${safe}`;
       const up = await sb.storage.from('portal-docs').upload(path, file, { contentType: file.type || 'application/octet-stream', upsert: false });
       if (up.error) { alert(`Upload failed: ${up.error.message}`); busy(btn, false, 'x'); return; }
-      const { data: doc, error } = await sb.from('documents').insert({ client_id: this.clientId, category: 'shared', file_name: file.name, file_url: 'portal-docs/' + path,
+      const { data: doc, error } = await sb.from('documents').insert({ client_id: this.clientId, category: 'other', file_name: file.name, file_url: 'portal-docs/' + path,
         file_size: file.size, mime_type: file.type || null, uploaded_by: 'practice', verified: true, visible_to_client: true }).select('id').single();
       if (error) { alert(`Could not save: ${error.message}`); busy(btn, false, 'x'); return; }
       if (approve) {
