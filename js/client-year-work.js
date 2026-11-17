@@ -110,10 +110,10 @@ Object.assign(ClientPortalPanel, {
         ${open ? `<table class="data-table" style="width:100%;font-size:12.5px;"><tbody>${recv.map(d => this.fileRow(d, P)).join('')}</tbody></table>` : ''}</div>`;
     }).join('');
     const sharedHtml = I.shared.length ? `<ul class="yw-files">${I.shared.map(d => `<li><span><b>${Esc(d.doc_type ? PmDocTypes[d.doc_type] || d.doc_type : d.file_name)}</b><span class="muted-line" style="display:block;font-size:11.5px;">${d.doc_type ? Esc(d.file_name) + ' · ' : ''}${Fmt.date(d.created_at)}${d.visible_to_client ? '' : ' · hidden'}</span></span>
-        <span style="white-space:nowrap;"><button type="button" class="btn btn-secondary btn-sm" data-pv="${d.id}">Preview</button> <button type="button" class="btn btn-secondary btn-sm" data-share="${d.id}" data-on="${d.visible_to_client ? '0' : '1'}">${d.visible_to_client ? 'Hide' : 'Share'}</button>
-        <select class="input" data-move-to="${d.id}" title="Move to another service or year" style="max-width:150px;display:inline-block;">${this.moveOpts(d)}</select></span></li>`).join('')}</ul>` : '<p class="empty-state">Nothing shared yet.</p>';
+        <span class="yw-file-acts"><button type="button" class="btn btn-secondary btn-sm" data-pv="${d.id}">Preview</button><button type="button" class="btn btn-secondary btn-sm" data-share="${d.id}" data-on="${d.visible_to_client ? '0' : '1'}">${d.visible_to_client ? 'Hide' : 'Share'}</button>
+        <select class="input" data-move-to="${d.id}" title="Move to another service or year">${this.moveOpts(d)}</select></span></li>`).join('')}</ul>` : '<p class="empty-state">Nothing shared yet.</p>';
     return `<section class="pp-sec yw-card${I.ws === 'submitted' ? ' yw-done' : ''}">${head}<div class="pp-sec-b">${bar}${asked}${apLine}${actions}${panel}
-      <div class="yw-cols"><div><h4 class="pp-sub">Shared with the client (${I.shared.length})</h4>${sharedHtml}</div><div><h4 class="pp-sub">Client's uploads (${I.mine.length})</h4>${groups}</div></div></div></section>`;
+      <div class="yw-cols"><div class="yw-col yw-col-us"><h4 class="yw-col-h">📤 Shared with the client (${I.shared.length})</h4>${sharedHtml}</div><div class="yw-col yw-col-them"><h4 class="yw-col-h">📥 Client's uploads (${I.mine.length})</h4>${groups}</div></div></div></section>`;
   },
 
   askPanel(g, y) {

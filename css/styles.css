@@ -649,3 +649,15 @@ body.viewer-open{overflow:hidden}
 .yw-past{border-top:1px solid #EEF1F4}
 .yw-past:first-child{border-top:0}
 .yw-past-hit{display:flex;gap:6px;align-items:center;width:100%;background:none;border:0;padding:10px 2px;font:inherit;font-size:13.5px;cursor:pointer;text-align:left}
+/* year cards – clearer areas (17 Nov) */
+.yw-acts{background:#EEF2F7;border:1px solid #D6DEE8;border-radius:10px;padding:10px 12px}
+.yw-col{border-radius:10px;padding:10px 12px;border:1px solid}
+.yw-col-us{background:#EFF8F7;border-color:#B9DEDB}
+.yw-col-them{background:#FFFAEB;border-color:#F3DFA2}
+.yw-col-h{margin:0 0 8px;font-size:14px;font-weight:700;color:#14213D}
+.yw-col .yw-files li{background:#fff;border:1px solid #E3E6EB;border-radius:8px;padding:8px 10px;margin-bottom:8px;align-items:flex-start;flex-wrap:nowrap}
+.yw-col .yw-files li>span:first-child{min-width:0;overflow-wrap:anywhere}
+.yw-file-acts{display:flex;flex-direction:column;align-items:stretch;gap:5px;flex:none;width:150px}
+.yw-file-acts .btn,.yw-file-acts select{width:100%;margin:0}
+.yw-col .yw-grp{background:#fff;border:1px solid #F0E3B8;border-radius:8px;padding:8px 10px;margin-bottom:8px}
+.yw-col .empty-state{margin:4px 0}
