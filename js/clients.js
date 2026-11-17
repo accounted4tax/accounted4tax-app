@@ -180,7 +180,7 @@ const ClientsPage = {
       <section class="pm-tab-panel" data-panel="work" hidden>
         <div class="pm-card"><div class="pm-card-head"><h3>Registrations</h3></div>
           <div id="panel-registrations"></div>
-          <div id="wrap-cis" style="margin-top:12px;"><h4 style="font-size:13px;margin:0 0 6px;">Online CIS registration forms</h4><div id="panel-cis"></div></div></div>
+          <div id="wrap-cis" style="margin-top:12px;"><h4 style="font-size:13px;margin:0 0 6px;">Online registrations (CIS / UTR)</h4><div id="panel-cis"></div></div></div>
         <div class="pm-card"><div class="pm-card-head"><h3>Services</h3></div><div id="panel-services"></div></div>
         <div class="pm-grid-2">
           <div class="pm-card"><div class="pm-card-head"><h3>Deadlines</h3></div><div id="panel-deadlines"></div></div>
