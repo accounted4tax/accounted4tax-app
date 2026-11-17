@@ -16,4 +16,3 @@ function renderComingSoon(title, description) {
 const CorrespondencePage = { render() { renderComingSoon('Correspondence', 'Client email history and templated correspondence will live here.'); } };
 const LoesPage = { render() { renderComingSoon('Letters of Engagement', 'LOE generation and signing status will live here.'); } };
 const InvoicesPage = { render() { renderComingSoon('Invoices', 'Invoice tracking and FreeAgent references will live here.'); } };
-const SettingsPage = { render() { renderComingSoon('Settings', 'Firm settings, onboarding flows, AML/CDD, and email templates will live here.'); } };
