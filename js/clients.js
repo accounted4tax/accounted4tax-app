@@ -163,6 +163,7 @@ const ClientsPage = {
           ${TABS.map(([k, label]) => `<button type="button" role="tab" class="pm-tab" data-tab="${k}" aria-selected="${k === current}">${label}<span class="pm-tab-badge" id="badge-${k}" hidden></span></button>`).join('')}
         </nav>
         <div class="pm-head-actions">
+          <button type="button" class="btn btn-secondary" id="btn-portal-view" title="Open the client portal as this client sees it (read-only)">View portal ↗</button>
           <button type="button" class="btn btn-secondary" id="btn-portal-access">Portal access</button>
           <button type="button" class="btn btn-danger-outline" id="btn-portal-remove">Remove access</button>
           <button type="button" class="btn btn-primary" id="edit-client-btn">Edit client</button>
@@ -265,6 +266,15 @@ const ClientsPage = {
 
     $('edit-client-btn').addEventListener('click', () => Router.go(`/clients/${id}/edit`));
     $('btn-portal-access').addEventListener('click', (e) => ClientPortalPanel.inviteFrom(e.target, id, client, () => { loaded.contact = false; if (current === 'contact') loadTab('contact'); refreshHeader(); }));
+    $('btn-portal-view').addEventListener('click', async () => {
+      // Open the window straight away (pop-up blockers), then point it at the portal preview for this client.
+      const win = window.open('about:blank', '_blank');
+      const { data } = await sb.from('qs_settings').select('value').eq('key', 'portal_base_url').maybeSingle();
+      let base = String((data && data.value) || 'https://portal.accounted4tax.co.uk/').replace(/^"|"$/g, '');
+      if (!/^https:\/\//.test(base)) base = 'https://portal.accounted4tax.co.uk/';
+      const url = base.split('#')[0].split('?')[0] + '?preview=' + encodeURIComponent(id);
+      if (win) { win.opener = null; win.location.href = url; } else window.open(url, '_blank', 'noopener');
+    });
     $('btn-portal-remove').addEventListener('click', (e) => ClientPortalPanel.revokeFrom(e.target, id, () => { refreshHeader(); }));
 
     show(current);
