@@ -163,6 +163,7 @@ const ClientsPage = {
           ${TABS.map(([k, label]) => `<button type="button" role="tab" class="pm-tab" data-tab="${k}" aria-selected="${k === current}">${label}<span class="pm-tab-badge" id="badge-${k}" hidden></span></button>`).join('')}
         </nav>
         <div class="pm-head-actions">
+          <a class="btn btn-secondary" id="btn-drive" target="_blank" rel="noopener" hidden>Drive folder ↗</a>
           <button type="button" class="btn btn-secondary" id="btn-portal-view" title="Open the client portal as this client sees it (read-only)">View portal ↗</button>
           <button type="button" class="btn btn-secondary" id="btn-portal-access">Portal access</button>
           <button type="button" class="btn btn-danger-outline" id="btn-portal-remove">Remove access</button>
@@ -266,6 +267,7 @@ const ClientsPage = {
 
     $('edit-client-btn').addEventListener('click', () => Router.go(`/clients/${id}/edit`));
     $('btn-portal-access').addEventListener('click', (e) => ClientPortalPanel.inviteFrom(e.target, id, client, () => { loaded.contact = false; if (current === 'contact') loadTab('contact'); refreshHeader(); }));
+    sb.from('drive_clients').select('folder_link').eq('client_id', id).maybeSingle().then(({ data }) => { const b = $('btn-drive'); if (b && data && data.folder_link && /^https:\/\//.test(data.folder_link)) { b.href = data.folder_link; b.hidden = false; } });
     $('btn-portal-view').addEventListener('click', async () => {
       // Open the window straight away (pop-up blockers), then point it at the portal preview for this client.
       const win = window.open('about:blank', '_blank');
