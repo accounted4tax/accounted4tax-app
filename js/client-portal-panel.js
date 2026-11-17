@@ -116,7 +116,7 @@ const ClientPortalPanel = {
           ${q.length ? `<ul style="list-style:none;margin:0 0 8px;padding:0;font-size:13px;">${q.map((f, i) => `<li style="display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px solid #EEF1F4;">${Esc(f.name)} <span class="muted-line">${(f.size / 1048576).toFixed(1)} MB <button type="button" class="btn btn-secondary btn-sm" data-unq="${i}" aria-label="Remove ${Esc(f.name)}">×</button></span></li>`).join('')}</ul>` : ''}
           <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
             <label class="btn btn-secondary btn-sm" style="cursor:pointer;">${q.length ? 'Add more files' : 'Choose files'}<input type="file" id="pp-share-files" multiple accept=".pdf,.jpg,.jpeg,.png,.heic,.webp" hidden></label>
-            <label class="form-field" style="margin:0;"><span>Shows in the portal under</span><select id="pp-share-where" class="input">${g && !g.loose ? `<option value="here">${Esc(selLabel)}</option>` : '<option value="here">Documents</option>'}<option value="filings">Company filings</option></select></label>
+            <label class="form-field" style="margin:0;"><span>Shows in the portal under</span><select id="pp-share-where" class="input">${g && !g.loose ? `<option value="here">${Esc(selLabel)}</option>` : '<option value="here">Documents</option>'}<option value="general">General documents (not linked to a service)</option><option value="filings">Company filings</option></select></label>
             <label style="font-size:13px;"><input type="checkbox" id="pp-share-approve"> Ask the client to approve ${q.length > 1 ? 'them' : 'it'}</label>
             ${q.length ? `<button type="button" class="btn btn-primary btn-sm" id="pp-share-send">Share ${q.length} file${q.length === 1 ? '' : 's'}</button>` : ''}
           </div>
@@ -196,6 +196,7 @@ const ClientPortalPanel = {
   moveOpts(d) {
     const cur = `${this.tabs.ids[d.client_service_id] || '_other'}|${pmNormKey(d.tax_year) || ''}`, o = [];
     this.tabs.forEach(t => t.years.forEach(y => { const v = `${t.key}|${y || ''}`; o.push(`<option value="${Esc(v)}" ${v === cur ? 'selected' : ''}>${Esc(t.name)} · ${Esc(pmKeyLabel(y))}</option>`); }));
+    if (!this.tabs.some(t => t.loose)) o.push(`<option value="_other|" ${cur === '_other|' ? 'selected' : ''}>General documents</option>`);
     if (!o.some(x => x.includes('selected'))) o.unshift(`<option value="${Esc(cur)}" selected>${Esc(pmKeyLabel(d.tax_year))}</option>`);
     return o.join('');
   },
@@ -296,7 +297,7 @@ const ClientPortalPanel = {
       const btn = $('pp-share-send'), files = this.queue.slice(), where = $('pp-share-where').value, approve = $('pp-share-approve').checked;
       const big = files.filter(f => f.size > 20 * 1048576);
       if (big.length) { alert(`Bigger than 20 MB: ${big.map(f => f.name).join(', ')}`); return; }
-      const t = this.curTab(), row = where === 'here' && t && !t.loose ? pmLinkRow(t, this.sel.yr) : null;
+      const t = this.curTab(), row = where === 'here' && t && !t.loose ? pmLinkRow(t, this.sel.yr) : null, noYear = where !== 'here' || (t && t.loose && !this.sel.yr);
       let title = null;
       if (approve) { title = prompt('What should the client approve? (they see this title)', files.length === 1 ? files[0].name.replace(/\.[a-z0-9]+$/i, '') : ''); if (title === null) return; }
       btn.disabled = true; const failed = [], ids = [];
@@ -307,7 +308,7 @@ const ClientPortalPanel = {
         const up = await sb.storage.from('portal-docs').upload(path, file, { contentType: file.type || 'application/octet-stream', upsert: false });
         if (up.error) { failed.push(file.name); continue; }
         const { data: doc, error } = await sb.from('documents').insert({ client_id: this.clientId, client_service_id: row ? row.id : null,
-          category: 'other', doc_group: where === 'filings' ? 'filings' : 'other', tax_year: where === 'filings' ? null : (this.sel.yr || null),
+          category: 'other', doc_group: where === 'filings' ? 'filings' : 'other', tax_year: noYear ? null : (this.sel.yr || null),
           file_name: file.name, file_url: 'portal-docs/' + path, file_size: file.size, mime_type: file.type || null, uploaded_by: 'practice', verified: true, visible_to_client: true }).select('id').single();
         if (error) { failed.push(file.name); continue; }
         ids.push(doc.id); this.queue = this.queue.filter(f => f !== file);
@@ -315,10 +316,11 @@ const ClientPortalPanel = {
       if (approve && title && title.trim()) {
         for (let i = 0; i < ids.length; i++) {
           await sb.from('portal_requests').insert({ client_id: this.clientId, kind: 'approve', title: (ids.length > 1 ? `${title.trim()} (${i + 1} of ${ids.length})` : title.trim()).slice(0, 160),
-            document_id: ids[i], tax_year: where === 'filings' ? null : (this.sel.yr || null), client_service_id: row ? row.id : null });
+            document_id: ids[i], tax_year: noYear ? null : (this.sel.yr || null), client_service_id: row ? row.id : null });
         }
       }
       if (ids.length) this.notify(approve ? 'approve' : 'document');
+      if (ids.length && where === 'general') { const g = (this.tabs || []).find(x => x.loose); this.sel = { svc: '_other', yr: null }; }
       if (failed.length) alert(`Not shared: ${failed.join(', ')}`);
       reload();
     });

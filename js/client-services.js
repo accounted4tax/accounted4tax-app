@@ -64,7 +64,7 @@ const ClientServicesPanel = {
       <tbody>${list.map(({ cs, dl }) => `
         <tr>
           <td><b>${Esc(cs.services_catalogue ? cs.services_catalogue.name : '—')}</b></td>
-          <td class="muted-line">${Esc(pmKeyLabel(pmRowKey(cs)) === 'No year' ? '—' : pmKeyLabel(pmRowKey(cs)))}</td>
+          <td class="muted-line">${Esc(pmRowKey(cs) ? pmKeyLabel(pmRowKey(cs)) : '—')}</td>
           <td>${dlCell(dl, cs)}</td>
           <td>${ws(cs)}</td>
           <td>${clientServiceStatusPill(cs.status)}</td>
