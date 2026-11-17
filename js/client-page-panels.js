@@ -41,7 +41,7 @@ const pmNormTY = (v) => { const m = /^\s*(\d{2}|\d{4})\s*[\/-]\s*(\d{2}|\d{4})\s
 const pmNormKey = (v) => !v ? null : (pmNormTY(v) || (/^YE \d{4}-04-0[56]$/.test(v) ? `${+v.slice(3, 7) - 1}/${v.slice(5, 7)}` : v));
 const pmRowKey = (r) => { const ty = pmNormTY(r.tax_year); if (ty) return ty; if (!r.period_end) return null; const pe = String(r.period_end).slice(0, 10); return /-04-0[56]$/.test(pe) ? `${+pe.slice(0, 4) - 1}/${pe.slice(2, 4)}` : 'YE ' + pe; };
 const pmKeyEnd = (k) => { let m = /^YE (\d{4}-\d{2}-\d{2})$/.exec(k || ''); if (m) return new Date(m[1] + 'T12:00:00'); m = /^(\d{4})\/\d{2}$/.exec(k || ''); return m ? new Date(+m[1] + 1, 3, 5) : new Date(0); };
-const pmKeyLabel = (k) => !k ? 'No year' : (String(k).startsWith('YE ') ? 'YE ' + Fmt.date(String(k).slice(3)) : k);
+const pmKeyLabel = (k) => !k ? 'General' : (String(k).startsWith('YE ') ? 'YE ' + Fmt.date(String(k).slice(3)) : k);
 const pmCurrentKey = (kind, client, rows) => {
   const today = new Date().toISOString().slice(0, 10);
   if (kind === 'tax') { const n = new Date(); let y = n.getFullYear(); if (n < new Date(y, 3, 6)) y--; return `${y}/${String(y + 1).slice(2)}`; }
@@ -76,7 +76,7 @@ const pmServiceTabs = (client, services, docs) => {
   if (loose.length || !out.length) {
     let ky = loose.map(d => pmNormKey(d.tax_year)); if (!out.length) pmPeriods(c).forEach(p => ky.push(p.value));
     ky = [...new Set(ky)].sort((a, b) => pmKeyEnd(b) - pmKeyEnd(a));
-    out.push({ key: '_other', name: out.length ? 'Not linked to a service' : 'All documents', rows: [], kind: 'any', years: ky.length ? ky : [null], loose: true });
+    out.push({ key: '_other', name: out.length ? 'General documents' : 'All documents', rows: [], kind: 'any', years: ky.length ? ky : [null], loose: true });
   }
   out.ids = ids;
   return out;
