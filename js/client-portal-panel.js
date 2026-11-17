@@ -34,7 +34,8 @@ const ClientPortalPanel = {
     this.tabs = pmServiceTabs(this.client, this.services, this.docs);
     this.queue = this.queue || [];
     this.loadedOnce = true;
-    this.draw();
+    try { this.draw(); }
+    catch (e) { console.error(e); containerEl.innerHTML = `<p class="page-error">This part of the page could not be shown (${Esc(e.message)}). Please press Ctrl+Shift+R to reload the latest version.</p>`; }
   },
 
   async call(body) {
@@ -81,6 +82,7 @@ const ClientPortalPanel = {
     }
 
     // documents and returns: year cards (sole trader) or service and year tabs (company) – js/client-year-work.js
+    if ((has('docs') || has('requests')) && !this.workArea) throw new Error('an old copy of the page is in your browser');
     if (has('docs') || has('requests')) {
       const A = active[0];
       if (A) html += `<p class="muted-line" style="font-size:12.5px;margin:0 0 10px;">Portal: ${A.first_signed_in_at ? `first signed in ${Fmt.date(A.first_signed_in_at)}` : '<b>not signed in yet</b>'}${A.details_confirmed_at ? ` · details confirmed ${Fmt.date(A.details_confirmed_at)}` : ' · details not confirmed yet'}</p>`;
