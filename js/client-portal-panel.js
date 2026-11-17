@@ -170,7 +170,7 @@ const ClientPortalPanel = {
     // approvals
     if (has('approvals')) {
       html += sec('Approval records', this.approvals.length ? `<div style="overflow-x:auto;"><table class="data-table" style="width:100%;font-size:12.5px;"><thead><tr><th>When</th><th>Decision</th><th>Signed in as</th><th>Document</th><th>Fingerprint (SHA-256)</th><th>IP</th></tr></thead><tbody>
-        ${this.approvals.map(a => { const doc = this.docs.find(d => d.id === a.document_id); return `<tr><td>${Fmt.date(a.created_at)} ${new Date(a.created_at).toTimeString().slice(0, 5)}</td><td>${a.decision === 'approved' ? '<span class="pill pill-green">Approved</span>' : '<span class="pill pill-amber">Changes requested</span>'}${a.comment ? `<div class="muted-line" style="white-space:pre-wrap;">${Esc(a.comment)}</div>` : ''}</td><td>${Esc(a.user_email)}</td><td>${Esc(doc ? doc.file_name : '—')}${doc ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;"><button type="button" class="btn btn-secondary btn-sm" data-dl="${doc.id}">Open</button>${a.document_sha256 ? `<button type="button" class="btn btn-secondary btn-sm" data-check="${a.id}">Check</button>` : ''}</div><div class="muted-line" style="font-size:11.5px;margin-top:4px;" data-check-result="${a.id}"></div>` : ''}</td><td style="font-family:monospace;font-size:11px;word-break:break-all;">${Esc(a.document_sha256 || '—')}</td><td>${Esc(a.ip_address || '—')}</td></tr>`; }).join('')}
+        ${this.approvals.map(a => { const doc = this.docs.find(d => d.id === a.document_id); return `<tr><td>${Fmt.date(a.created_at)} ${new Date(a.created_at).toTimeString().slice(0, 5)}</td><td>${a.decision === 'approved' ? '<span class="pill pill-green">Approved</span>' : '<span class="pill pill-amber">Changes requested</span>'}${a.comment ? `<div class="muted-line" style="white-space:pre-wrap;">${Esc(a.comment)}</div>` : ''}</td><td>${Esc(a.user_email)}</td><td>${Esc(doc ? doc.file_name : '—')}${doc ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;"><button type="button" class="btn btn-secondary btn-sm" data-pv="${doc.id}">Preview</button><button type="button" class="btn btn-secondary btn-sm" data-dl="${doc.id}">Download</button>${a.document_sha256 ? `<button type="button" class="btn btn-secondary btn-sm" data-check="${a.id}">Check</button>` : ''}</div><div class="muted-line" style="font-size:11.5px;margin-top:4px;" data-check-result="${a.id}"></div>` : ''}</td><td style="font-family:monospace;font-size:11px;word-break:break-all;">${Esc(a.document_sha256 || '—')}</td><td>${Esc(a.ip_address || '—')}</td></tr>`; }).join('')}
         </tbody></table></div>` : `<p class="empty-state">No approvals yet.</p>`);
     }
 
@@ -186,7 +186,7 @@ const ClientPortalPanel = {
     const fromClient = d.uploaded_by === 'client';
     const pill = fromClient ? (d.verified ? '<span class="pill pill-green">Checked</span>' : '<span class="pill pill-amber">New</span>') : (d.visible_to_client ? '<span class="pill pill-green">Shared</span>' : '<span class="pill pill-grey">Hidden</span>');
     return `<tr><td>${Esc(d.file_name)}<div class="muted-line" style="font-size:11.5px;">${Fmt.date(d.created_at)} · ${Esc(pmKeyLabel(pmNormKey(d.tax_year)))}</div></td><td>${pill}</td>
-      <td style="white-space:nowrap;text-align:right;"><button type="button" class="btn btn-secondary btn-sm" data-dl="${d.id}">Download</button>
+      <td style="white-space:nowrap;text-align:right;"><button type="button" class="btn btn-secondary btn-sm" data-pv="${d.id}">Preview</button> <button type="button" class="btn btn-secondary btn-sm" data-dl="${d.id}">Download</button>
       ${fromClient && !d.verified ? ` <button type="button" class="btn btn-secondary btn-sm" data-verify="${d.id}">Mark checked</button>` : ''}
       ${!fromClient ? ` <button type="button" class="btn btn-secondary btn-sm" data-share="${d.id}" data-on="${d.visible_to_client ? '0' : '1'}">${d.visible_to_client ? 'Hide' : 'Share'}</button>` : ''}
       <select class="input" data-move-group="${d.id}" title="Move to another category" style="max-width:170px;display:inline-block;">${Object.entries(DocGroups).map(([k, v]) => `<option value="${k}" ${(d.doc_group || 'other') === k ? 'selected' : ''}>${v[0]}</option>`).join('')}${fromClient ? '' : `<option value="returns" ${d.doc_group === 'returns' ? 'selected' : ''}>Returns and accounts</option><option value="filings" ${d.doc_group === 'filings' ? 'selected' : ''}>Company filings</option>`}</select>
@@ -254,6 +254,7 @@ const ClientPortalPanel = {
     }));
 
     // files
+    C.querySelectorAll('[data-pv]').forEach(b => b.addEventListener('click', () => { const d = this.docs.find(x => x.id === b.dataset.pv); if (d) pmPreview(d.file_url, d.file_name); }));
     C.querySelectorAll('[data-dl]').forEach(b => b.addEventListener('click', async () => {
       const d = this.docs.find(x => x.id === b.dataset.dl); if (!d) return;
       const { data, error } = await sb.storage.from('portal-docs').createSignedUrl(d.file_url.slice(12), 60, { download: d.file_name || true });

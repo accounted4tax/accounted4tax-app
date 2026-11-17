@@ -84,6 +84,16 @@ const pmServiceTabs = (client, services, docs) => {
 const pmRowFor = (g, y) => g.rows.find(r => pmRowKey(r) === y) || null;
 const pmLinkRow = (g, y) => pmRowFor(g, y) || [...g.rows].sort((a, b) => pmKeyEnd(pmRowKey(b)) - pmKeyEnd(pmRowKey(a)))[0] || null;
 
+// On-screen preview (js/viewer.js + PDF.js). fullPath is "<bucket>/<path>".
+const pmPreview = async (fullPath, name) => {
+  const i = String(fullPath || '').indexOf('/');
+  if (i < 1 || !window.A4TViewer) { alert('No preview available.'); return; }
+  const bucket = fullPath.slice(0, i), path = fullPath.slice(i + 1);
+  const { data, error } = await sb.storage.from(bucket).download(path);
+  if (error || !data) { alert(`Could not open: ${error ? error.message : 'file not found'}`); return; }
+  A4TViewer.open(data, { name: name || path.split('/').pop(), onDownload: async () => { try { window.open(await pmSignedUrl(fullPath, name || true), '_blank', 'noopener'); } catch (e) { alert(e.message); } } });
+};
+
 /* ---------------- Client details ---------------- */
 const ClientDetailsCard = {
   render(el, client) {
@@ -129,7 +139,7 @@ const ClientLoePanel = {
       try { const url = await pmSignedUrl(l.signed_file_url || l.file_url, download ? `Engagement letter ${l.tax_year || ''}.pdf`.replace(/\s+/g, ' ') : null); window.open(url, '_blank', 'noopener'); }
       catch (e) { alert(`Could not open the PDF: ${e.message}`); }
     };
-    el.querySelectorAll('[data-loe-view]').forEach(b => b.addEventListener('click', () => open(b.dataset.loeView, false)));
+    el.querySelectorAll('[data-loe-view]').forEach(b => b.addEventListener('click', () => { const l = this.rows.find(x => x.id === b.dataset.loeView); if (l) pmPreview(l.signed_file_url || l.file_url, `Engagement letter ${l.tax_year || ''}.pdf`); }));
     el.querySelectorAll('[data-loe-dl]').forEach(b => b.addEventListener('click', () => open(b.dataset.loeDl, true)));
   },
 };
@@ -432,12 +442,7 @@ const ClientRegistrationsPanel = {
       const { error } = await sb.from('client_registrations').update(patch).eq('id', s.dataset.regStatus);
       if (error) alert(`Could not save: ${error.message}`); reload();
     }));
-    el.querySelectorAll('[data-reg-view]').forEach(b => b.addEventListener('click', async () => {
-      const r = this.rows.find(x => x.id === b.dataset.regView); if (!r) return;
-      const { data, error } = await sb.storage.from('portal-docs').createSignedUrl(r.file_url.replace(/^portal-docs\//, ''), 60);
-      if (error) { alert(`Could not open: ${error.message}`); return; }
-      window.open(data.signedUrl, '_blank', 'noopener');
-    }));
+    el.querySelectorAll('[data-reg-view]').forEach(b => b.addEventListener('click', () => { const r = this.rows.find(x => x.id === b.dataset.regView); if (r) pmPreview(r.file_url, (RegTypes[r.reg_type] || 'Registration') + '.pdf'); }));
     el.querySelectorAll('[data-reg-file]').forEach(inp => inp.addEventListener('change', async () => {
       if (!inp.files[0]) return;
       try { await this.uploadFile(inp.dataset.regFile, inp.files[0]); } catch (e) { alert(`Upload failed: ${e.message}`); }
