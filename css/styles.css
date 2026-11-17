@@ -611,3 +611,10 @@ a:hover { text-decoration: underline; }
 .viewer-img{max-width:min(100%,900px);height:auto;background:#fff}
 .viewer-note{color:#fff;padding:24px}
 body.viewer-open{overflow:hidden}
+/* Request type picker */
+.pp-kinds{border:0;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px}
+.pp-kinds legend{font-size:13px;font-weight:600;margin-bottom:6px;color:var(--navy)}
+.pp-kind{display:flex;flex-direction:column;gap:2px;border:1px solid var(--border);border-radius:8px;padding:8px 10px 8px 32px;position:relative;cursor:pointer;background:#fff;font-size:13px}
+.pp-kind input{position:absolute;left:10px;top:11px}
+.pp-kind span{font-size:11.5px;color:var(--text-muted,#6B7280)}
+.pp-kind:has(input:checked){border-color:var(--teal);background:#EEF6F5;box-shadow:0 0 0 1px var(--teal)}
