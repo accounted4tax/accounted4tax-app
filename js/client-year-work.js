@@ -19,7 +19,7 @@ const pmSlots = (name) => {
   if (/accounts|ct600|corporation|ltd company|limited/.test(n)) return { slots: ['accounts', 'ct600', 'ct_comp'], figs: 'ct' };
   return { slots: ['return_summary', 'supporting'], figs: null };
 };
-const pmAddMonths = (iso, m, days) => { const d = new Date(String(iso).slice(0, 10) + 'T12:00:00'); d.setMonth(d.getMonth() + m); if (days) d.setDate(d.getDate() + days); return d.toISOString().slice(0, 10); };
+const pmYwAddMonths = (iso, m, days) => { const d = new Date(String(iso).slice(0, 10) + 'T12:00:00'); d.setMonth(d.getMonth() + m); if (days) d.setDate(d.getDate() + days); return d.toISOString().slice(0, 10); };
 const pmMoney = (v) => '£' + Number(v || 0).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const pmFigText = (f, y) => {
   if (!f) return '';
@@ -131,7 +131,7 @@ Object.assign(ClientPortalPanel, {
 
   sendPanel(g, y, I) {
     const S = pmSlots(g.name), f = this.slotFiles || {}, fig = this.figDraft || {};
-    const due = S.figs === 'ct' && /^YE /.test(y || '') ? pmAddMonths(y.slice(3), 9, 1) : '';
+    const due = S.figs === 'ct' && /^YE /.test(y || '') ? pmYwAddMonths(y.slice(3), 9, 1) : '';
     const slot = (t, i) => `<div class="yw-slot"><span><b>${Esc(PmDocTypes[t])}</b>${i === 0 ? ' <span class="pill pill-amber">required</span>' : ' <span class="muted-line">(optional)</span>'}</span>
       ${f[t] ? `<span>${Esc(f[t].name)} <button type="button" class="btn btn-secondary btn-sm" data-slot-clear="${t}" aria-label="Remove ${Esc(f[t].name)}">×</button></span>` : `<label class="btn btn-secondary btn-sm" style="cursor:pointer;">Choose file<input type="file" data-slot="${t}" accept=".pdf,.jpg,.jpeg,.png" hidden></label>`}</div>`;
     const num = (n, l) => `<label class="form-field" style="max-width:170px;"><span>${l}</span><input name="${n}" class="input" inputmode="decimal" value="${Esc(fig[n] != null ? fig[n] : '')}" placeholder="0.00"></label>`;
