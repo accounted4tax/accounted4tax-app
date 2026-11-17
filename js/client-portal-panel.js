@@ -21,12 +21,12 @@ const ClientPortalPanel = {
     this.openGroup = this.openGroup || null;
     if (!this.loadedOnce) containerEl.innerHTML = `<p class="muted-line">Loading portal…</p>`;
     const [acc, req, docs, msgs, aps, svcs] = await Promise.all([
-      sb.from('portal_access').select('id,invited_email,created_at,revoked_at,lang').eq('client_id', clientId).order('created_at', { ascending: false }),
+      sb.from('portal_access').select('id,invited_email,created_at,revoked_at,lang,first_signed_in_at,welcomed_at,details_confirmed_at').eq('client_id', clientId).order('created_at', { ascending: false }),
       sb.from('portal_requests').select('*').eq('client_id', clientId).order('created_at', { ascending: false }),
-      sb.from('documents').select('id,created_at,file_name,file_url,uploaded_by,visible_to_client,verified,category,doc_group,tax_year,client_service_id').eq('client_id', clientId).like('file_url', 'portal-docs/%').order('created_at', { ascending: false }),
+      sb.from('documents').select('id,created_at,file_name,file_url,uploaded_by,visible_to_client,verified,category,doc_group,doc_type,tax_year,client_service_id').eq('client_id', clientId).like('file_url', 'portal-docs/%').order('created_at', { ascending: false }),
       sb.from('portal_messages').select('*').eq('client_id', clientId).order('created_at', { ascending: true }).limit(300),
       sb.from('portal_approvals').select('*').eq('client_id', clientId).order('created_at', { ascending: false }),
-      sb.from('client_services').select('id,service_id,status,work_status,tax_year,period_end,services_catalogue(name)').eq('client_id', clientId).order('created_at'),
+      sb.from('client_services').select('id,service_id,status,work_status,tax_year,period_end,submitted_at,services_catalogue(name)').eq('client_id', clientId).order('created_at'),
     ]);
     const err = [acc, req, docs, msgs, aps].find(r => r.error);
     if (err) { containerEl.innerHTML = `<p class="page-error">Could not load the portal: ${Esc(err.error.message)}</p>`; return; }
@@ -73,91 +73,18 @@ const ClientPortalPanel = {
     const sec = (title, inner, kind) => `<section class="pp-sec${kind ? ' pp-sec-' + kind : ''}"><div class="pp-sec-h"><h3>${title}</h3></div><div class="pp-sec-b">${inner}</div></section>`;
     let html = '';
 
-    // service tabs + year tabs (shared by documents and requests) – the same structure the client sees
-    const g = this.curTab(), selRow = g ? pmRowFor(g, this.sel.yr) : null;
-    const selLabel = g ? `${g.name} · ${pmKeyLabel(this.sel.yr)}` : '';
-    if (g && (has('requests') || has('docs'))) {
-      html += `<div class="pm-chips" style="margin-bottom:6px;">${this.tabs.map(t => `<button type="button" class="pm-chip${t.key === g.key ? ' is-on' : ''}" data-svc="${Esc(t.key)}">${Esc(t.name)}</button>`).join('')}</div>
-        <div class="pm-chips" style="margin-bottom:12px;"><span class="muted-line" style="font-size:12.5px;margin-right:4px;">Year:</span>${g.years.map(y => `<button type="button" class="pm-chip${y === this.sel.yr ? ' is-on' : ''}" data-yr="${Esc(y || '')}">${Esc(pmKeyLabel(y))}</button>`).join('')}
-        ${selRow ? `<span style="margin-left:auto;font-size:13px;">Work status: <b>${Esc((typeof CLIENT_WORK_STATUSES !== 'undefined' && CLIENT_WORK_STATUSES[selRow.work_status]) || selRow.work_status || 'Not started')}</b> <span class="muted-line">(change it on the Work tab)</span></span>` : ''}</div>`;
-    }
-
     // access
     if (has('access')) {
       html += sec('Access', active.length
-        ? `<span class="pill pill-green">Portal active</span> <span class="muted-line" style="font-size:12px;margin-left:6px;">${active.map(a => `${Esc(a.invited_email)} (${a.lang === 'ro' ? 'Romanian' : 'English'}, since ${Fmt.date(a.created_at)})`).join(', ')}</span>`
+        ? `<span class="pill pill-green">Portal active</span> <span class="muted-line" style="font-size:12px;margin-left:6px;">${active.map(a => `${Esc(a.invited_email)} (${a.lang === 'ro' ? 'Romanian' : 'English'}, invited ${Fmt.date(a.created_at)}${a.first_signed_in_at ? ', first signed in ' + Fmt.date(a.first_signed_in_at) : ', not signed in yet'})`).join(', ')}</span>`
         : `<span class="pill pill-grey">Not invited</span>`);
     }
 
-    // documents: requested vs received per group
-    if (has('docs')) {
-      const D = this.docs.filter(d => d.doc_group !== 'filings' && this.inSel(d));
-      const R = this.requests.filter(r => r.status !== 'cancelled' && this.inSel(r));
-      const rows = Object.keys(DocGroups).map(g => {
-        const req = R.filter(r => r.kind === 'upload' && (r.doc_group || 'other') === g);
-        const recv = D.filter(d => d.uploaded_by === 'client' && (d.doc_group || 'other') === g);
-        const fresh = recv.filter(d => !d.verified).length, waiting = req.filter(r => r.status === 'open').length;
-        const st = waiting ? ['Waiting for client', 'pill-amber'] : fresh ? ['To check', 'pill-blue'] : recv.length ? ['Checked', 'pill-green'] : ['—', 'pill-grey'];
-        const open = this.openGroup === g;
-        const files = open ? `<tr><td colspan="5" style="background:#FAF9F5;padding:8px 10px;">${recv.length ? `<table class="data-table" style="width:100%;font-size:12.5px;"><tbody>${recv.map(d => this.fileRow(d, P)).join('')}</tbody></table>` : '<span class="muted-line">No files from the client in this group.</span>'}</td></tr>` : '';
-        return `<tr><td><b>${DocGroups[g][0]}</b><div class="muted-line" style="font-size:12px;">${DocGroups[g][1]}</div></td>
-          <td>${req.length ? `${req.length} request${req.length === 1 ? '' : 's'}` : '—'}</td>
-          <td>${recv.length} file${recv.length === 1 ? '' : 's'}${fresh ? ` <span class="pill pill-amber">${fresh} new</span>` : ''}</td>
-          <td><span class="pill ${st[1]}">${st[0]}</span></td>
-          <td style="text-align:right;white-space:nowrap;">${fresh ? `<button type="button" class="btn btn-secondary btn-sm" data-check-group="${g}">Mark checked</button> ` : ''}<button type="button" class="btn btn-secondary btn-sm" data-view-group="${g}">${open ? 'Hide' : 'View'}</button></td></tr>${files}`;
-      }).join('');
-      const shared = D.filter(d => d.uploaded_by !== 'client');
-      const filings = this.docs.filter(d => d.doc_group === 'filings');
-      const q = this.queue || [];
-      html += sec(`📁 Documents – ${Esc(selLabel)}`, `
-        <div style="overflow-x:auto;"><table class="data-table" style="width:100%;font-size:13px;min-width:560px;"><thead><tr><th>Client's uploads</th><th>Requested</th><th>Received</th><th>Status</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
-        <h4 class="pp-sub">Shared with the client (${shared.length})</h4>
-        ${shared.length ? `<table class="data-table" style="width:100%;font-size:12.5px;"><tbody>${shared.map(d => this.fileRow(d, P)).join('')}</tbody></table>` : '<p class="empty-state">Nothing shared for this service and year.</p>'}
-        <div class="pp-share">
-          <div class="pp-share-h">⇪ Share files with the client</div>
-          ${q.length ? `<ul style="list-style:none;margin:0 0 8px;padding:0;font-size:13px;">${q.map((f, i) => `<li style="display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px solid #EEF1F4;">${Esc(f.name)} <span class="muted-line">${(f.size / 1048576).toFixed(1)} MB <button type="button" class="btn btn-secondary btn-sm" data-unq="${i}" aria-label="Remove ${Esc(f.name)}">×</button></span></li>`).join('')}</ul>` : ''}
-          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
-            <label class="btn btn-secondary btn-sm" style="cursor:pointer;">${q.length ? 'Add more files' : 'Choose files'}<input type="file" id="pp-share-files" multiple accept=".pdf,.jpg,.jpeg,.png,.heic,.webp" hidden></label>
-            <label class="form-field" style="margin:0;"><span>Shows in the portal under</span><select id="pp-share-where" class="input">${g && !g.loose ? `<option value="here">${Esc(selLabel)}</option>` : '<option value="here">Documents</option>'}<option value="general">General documents (not linked to a service)</option><option value="filings">Company filings</option></select></label>
-            <label style="font-size:13px;"><input type="checkbox" id="pp-share-approve"> Ask the client to approve ${q.length > 1 ? 'them' : 'it'}</label>
-            ${q.length ? `<button type="button" class="btn btn-primary btn-sm" id="pp-share-send">Share ${q.length} file${q.length === 1 ? '' : 's'}</button>` : ''}
-          </div>
-          <p class="muted-line" style="font-size:12px;margin:6px 0 0;">PDF or images, max 20 MB each. Nothing is sent until you press Share.</p>
-        </div>
-        ${filings.length ? `<details style="margin-top:10px;"><summary style="cursor:pointer;font-size:13px;font-weight:600;">Company filings (${filings.length})</summary><table class="data-table" style="width:100%;font-size:12.5px;margin-top:6px;"><tbody>${filings.map(d => this.fileRow(d, P)).join('')}</tbody></table></details>` : ''}`);
-    }
-
-    // requests
-    if (has('requests')) {
-      const sharedDocs = this.docs.filter(d => d.uploaded_by !== 'client' && d.visible_to_client);
-      const reqRows = this.requests.filter(r => r.status !== 'cancelled' && this.inSel(r)).map(r => {
-        const st = PortalReqStatus[r.status] || PortalReqStatus.open;
-        const doc = r.document_id ? this.docs.find(d => d.id === r.document_id) : null;
-        const btns = [r.status !== 'done' ? `<button type="button" class="btn btn-secondary btn-sm" data-req-done="${r.id}">Mark done</button>` : '',
-          r.status === 'open' ? `<button type="button" class="btn btn-secondary btn-sm" data-req-cancel="${r.id}">Cancel</button>` : ''].join(' ');
-        return `<tr><td><b>${Esc(r.title)}</b>${r.description ? `<div class="muted-line" style="font-size:12px;">${Esc(r.description)}</div>` : ''}${doc ? `<div class="muted-line" style="font-size:12px;">Document: ${Esc(doc.file_name)}</div>` : ''}</td>
-          <td>${r.status === 'open' && r.kind !== 'approve'
-            ? `<select class="input" data-req-kind="${r.id}" title="Change what the client is asked to do" style="min-width:170px;">${Object.entries(PortalKinds).filter(([k]) => k !== 'approve').map(([k, v]) => `<option value="${k}" ${r.kind === k ? 'selected' : ''}>${v}</option>`).join('')}</select>${r.kind === 'upload' ? `<select class="input" data-req-group="${r.id}" style="min-width:150px;margin-top:4px;">${Object.entries(DocGroups).map(([k, v]) => `<option value="${k}" ${(r.doc_group || 'other') === k ? 'selected' : ''}>${v[0]}</option>`).join('')}</select>` : ''}`
-            : `${Esc(PortalKinds[r.kind] || r.kind)}${r.kind === 'upload' && r.doc_group ? `<div class="muted-line" style="font-size:12px;">${DocGroups[r.doc_group][0]}</div>` : ''}`}
-            <div class="muted-line" style="font-size:11.5px;">${PortalKindHelp[r.kind] || ''}</div></td><td>${r.due_date ? Fmt.date(r.due_date) : '—'}</td><td><span class="pill ${st.c}">${st.t}</span></td><td style="white-space:nowrap;">${btns}</td></tr>`;
-      }).join('');
-      html += sec(`✉ Requests to the client – ${Esc(selLabel)}`, `
-        ${reqRows ? `<div style="overflow-x:auto;"><table class="data-table" style="width:100%;font-size:13px;"><thead><tr><th>Request</th><th>Type</th><th>By</th><th>Status</th><th></th></tr></thead><tbody>${reqRows}</tbody></table></div>` : `<p class="empty-state">No requests for this service and year.</p>`}
-        <details class="pp-ask"><summary>+ Ask the client for something</summary>
-          <form id="pp-req-form" style="display:grid;gap:8px;margin-top:8px;max-width:600px;">
-            <div style="display:flex;gap:8px;flex-wrap:wrap;">
-              <fieldset class="pp-kinds"><legend>What should the client do?</legend>${Object.entries(PortalKinds).map(([k, v], i) => `<label class="pp-kind"><input type="radio" name="kind" value="${k}" ${i === 0 ? 'checked' : ''}><b>${v}</b><span>${PortalKindHelp[k]}</span></label>`).join('')}</fieldset>
-              <label class="form-field" style="flex:1;min-width:180px;" id="pp-group-field"><span>Category</span><select name="doc_group" class="input">${Object.entries(DocGroups).map(([k, v]) => `<option value="${k}">${v[0]}</option>`).join('')}</select></label>
-            </div>
-            <p class="muted-line" style="font-size:12.5px;margin:0;">For: <b>${Esc(selLabel)}</b> (pick another service or year above to change it)</p>
-            <label class="form-field"><span>Title (the client sees this) *</span><input name="title" class="input" required maxlength="160" placeholder="e.g. Bank statements Apr 2025 – Mar 2026"></label>
-            <label class="form-field"><span>Details (optional)</span><input name="description" class="input" maxlength="400"></label>
-            <label class="form-field" id="pp-doc-field" style="display:none;"><span>Document to approve *</span><select name="document_id" class="input"><option value="">— share the document first (Documents → From us) —</option>${sharedDocs.map(d => `<option value="${d.id}">${Esc(d.file_name)}</option>`).join('')}</select></label>
-            <label class="form-field" style="max-width:200px;"><span>Needed by</span><input name="due_date" type="date" class="input"></label>
-            <label style="font-size:13px;"><input type="checkbox" name="email" checked> Email the client that something is waiting</label>
-            <div><button type="submit" class="btn btn-primary btn-sm">Add request</button></div>
-          </form>
-        </details>`);
+    // documents and returns: year cards (sole trader) or service and year tabs (company) – js/client-year-work.js
+    if (has('docs') || has('requests')) {
+      const A = active[0];
+      if (A) html += `<p class="muted-line" style="font-size:12.5px;margin:0 0 10px;">Portal: ${A.first_signed_in_at ? `first signed in ${Fmt.date(A.first_signed_in_at)}` : '<b>not signed in yet</b>'}${A.details_confirmed_at ? ` · details confirmed ${Fmt.date(A.details_confirmed_at)}` : ' · details not confirmed yet'}</p>`;
+      html += this.workArea();
     }
 
     // messages
@@ -182,6 +109,7 @@ const ClientPortalPanel = {
     this.containerEl.innerHTML = html;
     if (has('messages') && this.messagesEl) this.messagesEl.innerHTML = `<h3 style="font-size:15px;margin:0 0 8px;">${msgTitle}</h3>${msgHtml('520px')}`;
     this.wire();
+    if (this.wireYear) this.wireYear();
     const th = document.getElementById('pp-thread'); if (th) th.scrollTop = th.scrollHeight;
     if (has('approvals') && this.approvals.some(a => !a.seen_by_practice_at)) sb.from('portal_approvals').update({ seen_by_practice_at: new Date().toISOString() }).eq('client_id', this.clientId).is('seen_by_practice_at', null).then(() => {});
     if (has('messages') && unread) sb.from('portal_messages').update({ read_by_practice_at: new Date().toISOString() }).eq('client_id', this.clientId).eq('sender', 'client').is('read_by_practice_at', null).then(() => {});
