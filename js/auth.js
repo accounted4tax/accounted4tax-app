@@ -6,6 +6,11 @@ const Auth = {
   async init() {
     const { data } = await sb.auth.getSession();
     this.currentUser = data.session ? data.session.user : null;
+    // A saved sign-in can be cancelled elsewhere (e.g. signing out of the client portal). If so, show the login screen.
+    if (this.currentUser) {
+      const { data: u, error } = await sb.auth.getUser();
+      if (error || !u || !u.user) { await sb.auth.signOut({ scope: 'local' }); this.currentUser = null; }
+    }
 
     sb.auth.onAuthStateChange((_event, session) => {
       this.currentUser = session ? session.user : null;
@@ -27,6 +32,6 @@ const Auth = {
   },
 
   async signOut() {
-    await sb.auth.signOut();
+    await sb.auth.signOut({ scope: 'local' });   // this device only – keeps the portal and quotes dashboard signed in
   }
 };
