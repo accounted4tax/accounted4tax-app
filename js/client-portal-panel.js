@@ -6,6 +6,8 @@
 
 // Where a file we share appears in the client portal.
 const PortalKinds = { upload: 'Upload documents', approve: 'Review & approve', confirm: 'Confirm details', info: 'Information / question' };
+// What the client's button does in the portal for each type.
+const PortalKindHelp = { upload: 'Client gets an Upload button', approve: 'Client opens the document and approves it', confirm: 'Client checks My details', info: 'Client replies by message' };
 const PortalReqStatus = { open: { t: 'Waiting for client', c: 'pill-amber' }, submitted: { t: 'Client replied – to check', c: 'pill-amber' }, done: { t: 'Done', c: 'pill-green' }, cancelled: { t: 'Cancelled', c: 'pill-grey' } };
 
 const ClientPortalPanel = {
@@ -134,14 +136,17 @@ const ClientPortalPanel = {
         const btns = [r.status !== 'done' ? `<button type="button" class="btn btn-secondary btn-sm" data-req-done="${r.id}">Mark done</button>` : '',
           r.status === 'open' ? `<button type="button" class="btn btn-secondary btn-sm" data-req-cancel="${r.id}">Cancel</button>` : ''].join(' ');
         return `<tr><td><b>${Esc(r.title)}</b>${r.description ? `<div class="muted-line" style="font-size:12px;">${Esc(r.description)}</div>` : ''}${doc ? `<div class="muted-line" style="font-size:12px;">Document: ${Esc(doc.file_name)}</div>` : ''}</td>
-          <td>${Esc(PortalKinds[r.kind] || r.kind)}${r.kind === 'upload' && r.doc_group ? `<div class="muted-line" style="font-size:12px;">${DocGroups[r.doc_group][0]}</div>` : ''}</td><td>${r.due_date ? Fmt.date(r.due_date) : '—'}</td><td><span class="pill ${st.c}">${st.t}</span></td><td style="white-space:nowrap;">${btns}</td></tr>`;
+          <td>${r.status === 'open' && r.kind !== 'approve'
+            ? `<select class="input" data-req-kind="${r.id}" title="Change what the client is asked to do" style="min-width:170px;">${Object.entries(PortalKinds).filter(([k]) => k !== 'approve').map(([k, v]) => `<option value="${k}" ${r.kind === k ? 'selected' : ''}>${v}</option>`).join('')}</select>${r.kind === 'upload' ? `<select class="input" data-req-group="${r.id}" style="min-width:150px;margin-top:4px;">${Object.entries(DocGroups).map(([k, v]) => `<option value="${k}" ${(r.doc_group || 'other') === k ? 'selected' : ''}>${v[0]}</option>`).join('')}</select>` : ''}`
+            : `${Esc(PortalKinds[r.kind] || r.kind)}${r.kind === 'upload' && r.doc_group ? `<div class="muted-line" style="font-size:12px;">${DocGroups[r.doc_group][0]}</div>` : ''}`}
+            <div class="muted-line" style="font-size:11.5px;">${PortalKindHelp[r.kind] || ''}</div></td><td>${r.due_date ? Fmt.date(r.due_date) : '—'}</td><td><span class="pill ${st.c}">${st.t}</span></td><td style="white-space:nowrap;">${btns}</td></tr>`;
       }).join('');
       html += sec(`✉ Requests to the client – ${Esc(selLabel)}`, `
         ${reqRows ? `<div style="overflow-x:auto;"><table class="data-table" style="width:100%;font-size:13px;"><thead><tr><th>Request</th><th>Type</th><th>By</th><th>Status</th><th></th></tr></thead><tbody>${reqRows}</tbody></table></div>` : `<p class="empty-state">No requests for this service and year.</p>`}
         <details class="pp-ask"><summary>+ Ask the client for something</summary>
           <form id="pp-req-form" style="display:grid;gap:8px;margin-top:8px;max-width:600px;">
             <div style="display:flex;gap:8px;flex-wrap:wrap;">
-              <label class="form-field" style="flex:1;min-width:180px;"><span>Type</span><select name="kind" class="input">${Object.entries(PortalKinds).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select></label>
+              <fieldset class="pp-kinds"><legend>What should the client do?</legend>${Object.entries(PortalKinds).map(([k, v], i) => `<label class="pp-kind"><input type="radio" name="kind" value="${k}" ${i === 0 ? 'checked' : ''}><b>${v}</b><span>${PortalKindHelp[k]}</span></label>`).join('')}</fieldset>
               <label class="form-field" style="flex:1;min-width:180px;" id="pp-group-field"><span>Category</span><select name="doc_group" class="input">${Object.entries(DocGroups).map(([k, v]) => `<option value="${k}">${v[0]}</option>`).join('')}</select></label>
             </div>
             <p class="muted-line" style="font-size:12.5px;margin:0;">For: <b>${Esc(selLabel)}</b> (pick another service or year above to change it)</p>
@@ -228,9 +233,9 @@ const ClientPortalPanel = {
     // request form
     const rf = $('pp-req-form');
     if (rf) {
-      const kindSel = rf.querySelector('[name="kind"]');
-      const sync = () => { $('pp-doc-field').style.display = kindSel.value === 'approve' ? '' : 'none'; $('pp-group-field').style.display = kindSel.value === 'upload' ? '' : 'none'; };
-      kindSel.addEventListener('change', sync); sync();
+      const kindVal = () => (rf.querySelector('[name="kind"]:checked') || {}).value || 'upload';
+      const sync = () => { $('pp-doc-field').style.display = kindVal() === 'approve' ? '' : 'none'; $('pp-group-field').style.display = kindVal() === 'upload' ? '' : 'none'; };
+      rf.querySelectorAll('[name="kind"]').forEach(r => r.addEventListener('change', sync)); sync();
       rf.addEventListener('submit', async (e) => {
         e.preventDefault();
         const f = new FormData(rf), kind = f.get('kind');
@@ -246,6 +251,16 @@ const ClientPortalPanel = {
         reload();
       });
     }
+    C.querySelectorAll('[data-req-kind]').forEach(sel => sel.addEventListener('change', async () => {
+      const r = this.requests.find(x => x.id === sel.dataset.reqKind), patch = { kind: sel.value, updated_at: new Date().toISOString() };
+      if (sel.value === 'upload' && r && !r.doc_group) patch.doc_group = /bank|statement/i.test(r.title || '') ? 'bank' : 'other';
+      const { error } = await sb.from('portal_requests').update(patch).eq('id', sel.dataset.reqKind);
+      if (error) alert(`Could not save: ${error.message}`); reload();
+    }));
+    C.querySelectorAll('[data-req-group]').forEach(sel => sel.addEventListener('change', async () => {
+      const { error } = await sb.from('portal_requests').update({ doc_group: sel.value, updated_at: new Date().toISOString() }).eq('id', sel.dataset.reqGroup);
+      if (error) alert(`Could not save: ${error.message}`); reload();
+    }));
     C.querySelectorAll('[data-req-done]').forEach(b => b.addEventListener('click', async () => {
       busy(b, true); await sb.from('portal_requests').update({ status: 'done', completed_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', b.dataset.reqDone); reload();
     }));
