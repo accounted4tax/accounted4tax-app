@@ -1,7 +1,7 @@
 // Accounted4Tax Practice Manager — online registrations panel on the client page (Edge Function "start-online").
 // CIS registration (/cis-registration/, form CIS301): paid → client signs → "Download PDF" (signed pages 1–2) → print, post, "Mark posted".
 // UTR registration (/utr-registration/, CWF1 or SA1): paid → ID check (Identity checks panel) → "Registration sheet" → register → "Mark registered".
-// If the online registration fails: "Paper form" downloads CWF1 / SA1 filled in (client signs and dates it, then post it).
+// After payment the client signs CWF1 / SA1 on screen. If the online registration fails: "Signed form" downloads it to print and post.
 
 const CisFormStatus = {
   awaiting_payment: { t: 'Not paid yet', c: 'pill-grey' },
@@ -38,9 +38,10 @@ const ClientCisPanel = {
 
   utrRow(f) {
     const esc = this.esc.bind(this), a = f.answers || {}, paid = f.quote && f.quote.status === 'paid';
-    const st = f.status === 'registered' ? { t: 'Registered with HMRC', c: 'pill-green' } : paid ? { t: 'Paid – register once ID is approved', c: 'pill-amber' } : { t: 'Not paid yet', c: 'pill-grey' };
+    const st = f.status === 'registered' ? { t: 'Registered with HMRC', c: 'pill-green' } : paid && f.signed_at ? { t: 'Form signed – register once ID is approved', c: 'pill-amber' }
+      : paid ? { t: 'Paid – waiting for client to sign the form', c: 'pill-amber' } : { t: 'Not paid yet', c: 'pill-grey' };
     const reason = { self_employed: 'Self-employed – form CWF1', director: 'Company director – form SA1', other: 'Other income – form SA1' }[a.reason] || a.reason;
-    const meta = [f.quote ? `Quote ${esc(f.quote.quote_number)}` : '', `started ${Fmt.date(f.created_at)}`, f.registered_at ? `registered ${Fmt.date(f.registered_at)}` : ''].filter(Boolean).join(' · ');
+    const meta = [f.quote ? `Quote ${esc(f.quote.quote_number)}` : '', `started ${Fmt.date(f.created_at)}`, f.signed_at ? `signed ${Fmt.date(f.signed_at)}` : '', f.registered_at ? `registered ${Fmt.date(f.registered_at)}` : ''].filter(Boolean).join(' · ');
     const addr = (x) => [x.line1, x.line2, x.town, x.county, x.postcode].filter(Boolean).join(', ') + (x.from ? ` (from ${x.from}${x.to ? ' to ' + x.to : ''})` : '');
     const rows = [['Registration', `UTR${a.cis ? ' + CIS subcontractor' : ''} · ${reason}`], ['Name', `${a.title || ''} ${a.first_names || ''} ${a.surname || ''}`], ['Other names', a.other_names],
       ['Date of birth', a.date_of_birth], ['NI number', a.ni_number], ['Phone', a.phone], ['Email', a.email],
@@ -48,7 +49,7 @@ const ClientCisPanel = {
       ['Self-employed since', a.start_date], ['Type of work', a.work_type], ['Business name', a.trading_name], ['Also employed', a.reason === 'self_employed' ? (a.also_employed ? 'Yes' : 'No') : ''],
       ['Company', a.company_name ? `${a.company_name} (${a.company_number}), director since ${a.director_since}` : ''], ['Other income', a.income_type ? `${a.income_type}${a.income_detail ? ' – ' + a.income_detail : ''}, since ${a.income_start}` : '']];
     const btns = [paid ? `<button type="button" class="btn btn-primary btn-sm" data-sheet="${f.id}">Registration sheet</button>` : '',
-      paid ? `<button type="button" class="btn btn-secondary btn-sm" data-paper="${f.id}" title="Use if the online registration fails – the client signs and dates it, then post it to HMRC">Paper form (${a.reason === 'self_employed' ? 'CWF1' : 'SA1'})</button>` : '',
+      paid ? `<button type="button" class="btn btn-secondary btn-sm" data-paper="${f.id}" title="Use if the online registration fails – the client signs and dates it, then post it to HMRC">${f.signed_at ? 'Signed' : 'Paper'} form (${a.reason === 'self_employed' ? 'CWF1' : 'SA1'}${f.signed_at ? '' : ', not signed'})</button>` : '',
       paid && f.status !== 'registered' ? `<button type="button" class="btn btn-secondary btn-sm" data-post="${f.id}">Mark registered</button>` : '',
       f.status === 'registered' ? `<button type="button" class="btn btn-secondary btn-sm" data-unpost="${f.id}">Undo</button>` : ''].join(' ');
     return `<div class="note-row" style="padding:10px 0;border-top:1px solid var(--border, #E3E6EB);">
