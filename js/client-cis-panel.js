@@ -1,6 +1,7 @@
 // Accounted4Tax Practice Manager — online registrations panel on the client page (Edge Function "start-online").
 // CIS registration (/cis-registration/, form CIS301): paid → client signs → "Download PDF" (signed pages 1–2) → print, post, "Mark posted".
 // UTR registration (/utr-registration/, CWF1 or SA1): paid → ID check (Identity checks panel) → "Registration sheet" → register → "Mark registered".
+// If the online registration fails: "Paper form" downloads CWF1 / SA1 filled in (client signs and dates it, then post it).
 
 const CisFormStatus = {
   awaiting_payment: { t: 'Not paid yet', c: 'pill-grey' },
@@ -47,6 +48,7 @@ const ClientCisPanel = {
       ['Self-employed since', a.start_date], ['Type of work', a.work_type], ['Business name', a.trading_name], ['Also employed', a.reason === 'self_employed' ? (a.also_employed ? 'Yes' : 'No') : ''],
       ['Company', a.company_name ? `${a.company_name} (${a.company_number}), director since ${a.director_since}` : ''], ['Other income', a.income_type ? `${a.income_type}${a.income_detail ? ' – ' + a.income_detail : ''}, since ${a.income_start}` : '']];
     const btns = [paid ? `<button type="button" class="btn btn-primary btn-sm" data-sheet="${f.id}">Registration sheet</button>` : '',
+      paid ? `<button type="button" class="btn btn-secondary btn-sm" data-paper="${f.id}" title="Use if the online registration fails – the client signs and dates it, then post it to HMRC">Paper form (${a.reason === 'self_employed' ? 'CWF1' : 'SA1'})</button>` : '',
       paid && f.status !== 'registered' ? `<button type="button" class="btn btn-secondary btn-sm" data-post="${f.id}">Mark registered</button>` : '',
       f.status === 'registered' ? `<button type="button" class="btn btn-secondary btn-sm" data-unpost="${f.id}">Undo</button>` : ''].join(' ');
     return `<div class="note-row" style="padding:10px 0;border-top:1px solid var(--border, #E3E6EB);">
@@ -86,6 +88,7 @@ const ClientCisPanel = {
     }).join('');
     this.bodyEl.querySelectorAll('[data-pdf]').forEach(b => b.addEventListener('click', () => this.pdf(b.dataset.pdf, b)));
     this.bodyEl.querySelectorAll('[data-sheet]').forEach(b => b.addEventListener('click', () => this.sheet(b.dataset.sheet, b)));
+    this.bodyEl.querySelectorAll('[data-paper]').forEach(b => b.addEventListener('click', () => this.sheet(b.dataset.paper, b, 'paper')));
     this.bodyEl.querySelectorAll('[data-post]').forEach(b => b.addEventListener('click', () => this.posted(b.dataset.post, true, b)));
     this.bodyEl.querySelectorAll('[data-unpost]').forEach(b => b.addEventListener('click', () => this.posted(b.dataset.unpost, false, b)));
   },
@@ -97,10 +100,10 @@ const ClientCisPanel = {
     btn.disabled = false;
   },
 
-  async sheet(id, btn) {
+  async sheet(id, btn, kind) {
     btn.disabled = true;
     try {
-      const r = await this.call({ action: 'admin_pdf', id });
+      const r = await this.call({ action: 'admin_pdf', id, kind });
       const bytes = Uint8Array.from(atob(r.pdf), (c) => c.charCodeAt(0));
       const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
       const a = document.createElement('a'); a.href = url; a.download = r.name || 'UTR registration.pdf'; document.body.appendChild(a); a.click(); a.remove();
