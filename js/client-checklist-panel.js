@@ -9,7 +9,7 @@ const ChecklistStatus = {
   reviewed:  { t: 'Reviewed', c: 'pill-green' },
 };
 const ChecklistAnswer = { have: { t: 'Has it', c: 'pill-green' }, help: { t: 'Needs help', c: 'pill-amber' }, na: { t: 'Not applicable', c: 'pill-grey' } };
-const ChecklistTypes = { self_employed: 'Self-employed', cis: 'CIS subcontractor', landlord: 'Landlord', director: 'Company director', other_income: 'Other income' };
+const ChecklistTypes = { self_employed: 'Self-employed', cis: 'CIS subcontractor', landlord: 'Rental income', employment: 'Employment (PAYE)', director: 'Company director', pension: 'Pensions', dividends: 'Dividends', interest: 'Interest', foreign: 'Income from abroad', gains: 'Capital gains', other_income: 'Other income' };
 
 const ClientChecklistPanel = {
   async render(clientId, containerEl, client) {
