@@ -1,7 +1,7 @@
 // Accounted4Tax Practice Manager — "Documents and returns" on the client page, mirroring the client portal.
 // Sole traders: a card per year (past, submitted years collapsed). Limited companies: a tab per service and per year.
 // Each year: Work status, the same 4-step bar the client sees, what we asked for (Mark received),
-// Send return for approval (labelled files + figures), Mark submitted (receipt), shared files and the client's uploads.
+// Send return for approval (labelled files + figures), Mark submitted (receipt), shared files and the client's uploads. 20 Nov 2026: the balance taken on approval can be changed before sending.
 // Adds methods to ClientPortalPanel (js/client-portal-panel.js). Loaded after it.
 
 const PmBar = { not_started: 1, awaiting_info: 2, in_progress: 2, sent_for_approval: 3, approved: 3, submitted: 4 };
@@ -142,6 +142,7 @@ Object.assign(ClientPortalPanel, {
       ${S.figs === 'ct' ? `<div class="yw-figs"><b>Figures</b><div style="display:flex;gap:8px;flex-wrap:wrap;">${num('ct', 'Corporation Tax to pay £')}<label class="form-field" style="max-width:190px;"><span>Due date</span><input name="due" type="date" class="input" value="${Esc(fig.due || due)}"></label></div></div>` : ''}
       <label class="form-field"><span>Title (the client sees this)</span><input name="title" class="input" maxlength="160" value="${Esc(fig.title || `Please approve your ${g.name} ${pmKeyLabel(y)}`)}"></label>
       <label class="form-field" style="max-width:200px;"><span>Approve by</span><input name="due_date" type="date" class="input" value="${Esc(fig.due_date || '')}"></label>
+      <div class="yw-bal" id="yw-bal"></div>
       <label style="font-size:13px;"><input type="checkbox" name="email" checked> Email the client</label>
       ${I.openAp ? '<p class="page-error" style="margin:0;">This year already has an approval waiting. Withdraw it first if you are replacing it.</p>' : ''}
       <div><button type="submit" class="btn btn-primary btn-sm" ${I.openAp ? 'disabled' : ''}>Send for approval</button> <button type="button" class="btn btn-secondary btn-sm" data-act-close>Cancel</button></div>
@@ -258,6 +259,21 @@ Object.assign(ClientPortalPanel, {
     }
 
     const send = $('yw-send');
+    // balance taken from the card when the client approves: shown and editable before sending
+    if (send) (async () => {
+      const box = $('yw-bal'), { g, y } = cur(), row = g ? pmLinkRow(g, y) : null;
+      if (!box || !row) return;
+      if (!this.balInfo || this.balInfo.rowId !== row.id) {
+        const { data } = await sb.rpc('pm_balance_line', { p_client_service_id: row.id });
+        this.balInfo = { rowId: row.id, ...((data && data[0]) || {}) };
+      }
+      const B = this.balInfo, fig = this.figDraft || {};
+      if (!B.matches) return;
+      if (B.matches > 1) { box.innerHTML = '<p class="muted-line" style="font-size:12.5px;margin:0;">This client has more than one balance waiting for this year – it will not be taken automatically. Charge it from Stripe.</p>'; return; }
+      box.innerHTML = `<div class="yw-figs"><b>Balance taken from the client's card when they approve</b>
+        <label class="form-field" style="max-width:190px;"><span>Balance £</span><input name="balance" class="input" inputmode="decimal" value="${Esc(fig.balance != null ? fig.balance : Number(B.amount).toFixed(2))}"></label>
+        <p class="muted-line" style="font-size:12px;margin:0;">Quoted: £${Esc(Number(B.amount).toFixed(2))}. Change it here if the work turned out bigger or smaller – the portal shows the new amount on the approval button.</p></div>`;
+    })();
     if (send) send.addEventListener('submit', async (e) => {
       e.preventDefault();
       const f = new FormData(send), { g, y } = cur(), S = pmSlots(g.name), files = this.slotFiles || {};
@@ -268,8 +284,15 @@ Object.assign(ClientPortalPanel, {
       if (bad.length) { alert('Please type the figures as numbers, e.g. 1240.50'); return; }
       const figures = S.figs === 'sa' ? { kind: 'sa', balancing: n('balancing'), poa1: n('poa1'), poa2: n('poa2'), refund: n('refund') }
         : S.figs === 'ct' ? { kind: 'ct', ct: n('ct'), due: f.get('due') || null } : null;
+      const B = this.balInfo || {}, newBal = f.has('balance') ? n('balance') : null;
+      if (f.has('balance') && (newBal == null || isNaN(newBal) || newBal <= 0 || newBal > 20000)) { alert('Please type the balance as a number, e.g. 250.00'); return; }
       lockForm(send, 'Uploading…');
       try {
+        if (B.line_id && newBal != null && Math.round(newBal * 100) !== Math.round(Number(B.amount) * 100)) {
+          const { error: be } = await sb.rpc('pm_set_balance', { p_line_id: B.line_id, p_amount: newBal });
+          if (be) throw new Error(`balance not changed (${be.message})`);
+          this.balInfo = null;
+        }
         const ids = [];
         for (const t of S.slots) if (files[t]) ids.push(await this.shareFile(files[t], row, y, t));
         const { error } = await sb.from('portal_requests').insert({ client_id: this.clientId, kind: 'approve', title: (String(f.get('title') || '').trim() || `Please approve your ${g.name} ${pmKeyLabel(y)}`).slice(0, 160),
@@ -277,7 +300,7 @@ Object.assign(ClientPortalPanel, {
         if (error) throw new Error(error.message);
         if (exact) await this.setWork(exact.id, { work_status: 'sent_for_approval' });
         if (f.get('email')) this.notify('approve');
-        this.act = null; this.slotFiles = {}; this.figDraft = {};
+        this.act = null; this.slotFiles = {}; this.figDraft = {}; this.balInfo = null;
       } catch (err) { alert(`Could not send: ${err.message}`); }
       reload();
     });
