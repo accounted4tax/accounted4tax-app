@@ -182,7 +182,8 @@ const ClientsPage = {
       <section class="pm-tab-panel" data-panel="work" hidden>
         <div class="pm-card"><div class="pm-card-head"><h3>Registrations</h3></div>
           <div id="panel-registrations"></div>
-          <div id="wrap-cis" style="margin-top:12px;"><h4 style="font-size:13px;margin:0 0 6px;">Online registrations (CIS / UTR)</h4><div id="panel-cis"></div></div></div>
+          <div id="wrap-cis" style="margin-top:12px;"><h4 style="font-size:13px;margin:0 0 6px;">Online registrations (CIS / UTR)</h4><div id="panel-cis"></div></div>
+          <div id="wrap-online" style="margin-top:12px;display:none;"><h4 style="font-size:13px;margin:0 0 6px;">Online answers (from the website)</h4><div id="panel-online"></div></div></div>
         <div class="pm-card"><div class="pm-card-head"><h3>Services</h3></div><div id="panel-services"></div></div>
         <div class="pm-grid-2">
           <div class="pm-card"><div class="pm-card-head"><h3>Deadlines</h3></div><div id="panel-deadlines"></div></div>
@@ -240,6 +241,7 @@ const ClientsPage = {
       } else if (k === 'work') {
         ClientRegistrationsPanel.render(id, $('panel-registrations'));
         ClientCisPanel.render(id, $('wrap-cis'), $('panel-cis'));
+        ClientOnlinePanel.render(id, $('wrap-online'), $('panel-online'));
         ClientServicesPanel.render(id, $('panel-services'), {});
         ClientDeadlinesPanel.render(id, $('panel-deadlines'), {});
         ClientTasksPanel.render(id, $('panel-tasks'), {});
