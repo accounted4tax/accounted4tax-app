@@ -81,7 +81,8 @@ const pmServiceTabs = (client, services, docs) => {
   out.ids = ids;
   return out;
 };
-const pmRowFor = (g, y) => g.rows.find(r => pmRowKey(r) === y) || null;
+// a service with no tax year / period (monthly payroll, VAT returns, bookkeeping…) is ongoing: it counts for every year (22 Nov 2026)
+const pmRowFor = (g, y) => g.rows.find(r => pmRowKey(r) === y) || g.rows.find(r => !pmRowKey(r)) || null;
 const pmLinkRow = (g, y) => pmRowFor(g, y) || [...g.rows].sort((a, b) => pmKeyEnd(pmRowKey(b)) - pmKeyEnd(pmRowKey(a)))[0] || null;
 
 // On-screen preview (js/viewer.js + PDF.js). fullPath is "<bucket>/<path>".
