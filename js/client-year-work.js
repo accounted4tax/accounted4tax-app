@@ -55,6 +55,10 @@ Object.assign(ClientPortalPanel, {
       <div class="yw-bar-l">${lab.map(l => `<span>${l}</span>`).join('')}</div>`;
   },
 
+  // 23 Nov 2026: each service card can be collapsed; remembered on this computer
+  isCol(key) { try { this._col = this._col || JSON.parse(localStorage.getItem('pm_yw_col') || '{}'); } catch (_) { this._col = this._col || {}; } return !!this._col[(this.clientId || '') + '|' + key]; },
+  setCol(key, on) { this.isCol(key); const k = (this.clientId || '') + '|' + key; if (on) this._col[k] = 1; else delete this._col[k]; try { localStorage.setItem('pm_yw_col', JSON.stringify(this._col)); } catch (_) {} },
+
   workArea() {
     const sole = (this.client || {}).client_type !== 'ltd';
     const real = (this.tabs || []).filter(t => !t.loose), loose = (this.tabs || []).find(t => t.loose);
@@ -73,7 +77,9 @@ Object.assign(ClientPortalPanel, {
     cards.sort((a, b) => (a.I.row ? 0 : 1) - (b.I.row ? 0 : 1) || pmKeyEnd(a.y) - pmKeyEnd(b.y));
     past.sort((a, b) => pmKeyEnd(b.y) - pmKeyEnd(a.y));
     const looseHas = loose && this.docs.some(d => d.doc_group !== 'filings' && !this.tabs.ids[d.client_service_id]);
-    return cards.map(x => this.yearBlock(x.g, x.y, many)).join('')
+    const allKeys = cards.map(x => `${x.g.key}|${x.y || ''}`);
+    const tools = allKeys.length > 1 ? `<div class="yw-tools"><button type="button" class="btn-link" data-col-all="1" data-keys="${Esc(allKeys.join('~'))}">Collapse all</button> · <button type="button" class="btn-link" data-col-all="0" data-keys="${Esc(allKeys.join('~'))}">Expand all</button></div>` : '';
+    return tools + cards.map(x => this.yearBlock(x.g, x.y, many)).join('')
       + (past.length ? `<section class="pp-sec"><div class="pp-sec-h"><h3>Past years</h3></div><div class="pp-sec-b">${past.map(x => {
         const k = `${x.g.key}|${x.y || ''}`, open = this.openPast === k;
         return `<div class="yw-past"><button type="button" class="yw-past-hit" data-past="${Esc(k)}" aria-expanded="${open}"><b>${many ? Esc(x.g.name) + ' · ' : ''}${Esc(pmKeyLabel(x.y))}</b> <span class="muted-line">· Submitted${x.I.row && x.I.row.submitted_at ? ' ' + Fmt.date(x.I.row.submitted_at) : ''}</span><span style="margin-left:auto;">${open ? '▴' : '▾'}</span></button>${open ? this.yearBlock(x.g, x.y, many) : ''}</div>`;
@@ -92,9 +98,16 @@ Object.assign(ClientPortalPanel, {
     const act = this.act && this.act.key === key ? this.act.kind : null;
     const WS = typeof CLIENT_WORK_STATUSES !== 'undefined' ? CLIENT_WORK_STATUSES : PmClientSees;
     const sees = I.ws ? (I.asked.some(r => r.status === 'open') && I.ws !== 'submitted' ? 'Waiting for you' : PmClientSees[I.ws]) : 'Current year';
-    const head = `<div class="yw-h"><h3>${Esc(title || ((showName ? g.name + ' · ' : '') + pmKeyLabel(y)))}</h3>
+    const col = this.isCol(key);
+    const tog = `<button type="button" class="yw-tog" data-col="${Esc(key)}" aria-expanded="${!col}" title="${col ? 'Expand' : 'Collapse'}">${col ? '▸' : '▾'}</button>`;
+    const head = `<div class="yw-h"><span class="yw-ht">${tog}<h3 class="yw-h3" data-col="${Esc(key)}">${Esc(title || ((showName ? g.name + ' · ' : '') + pmKeyLabel(y)))}</h3></span>
       ${I.row ? `<label class="yw-ws">Work status <select class="input" data-ws="${I.row.id}">${Object.entries(WS).map(([k, v]) => `<option value="${k}" ${k === I.ws ? 'selected' : ''}>${Esc(v)}</option>`).join('')}</select></label>` : (g.loose ? '' : '<span class="muted-line" style="font-size:12.5px;">No service set up for this year (add it on the Work tab)</span>')}</div>`;
     const bar = g.loose ? '' : `${this.bar(I.ws)}<p class="yw-sees">Client sees: <span class="pill ${I.ws === 'submitted' ? 'pill-green' : sees === 'Waiting for you' || I.ws === 'sent_for_approval' ? 'pill-amber' : 'pill-grey'}">${Esc(sees)}</span></p>`;
+    if (col) {
+      const waiting = I.asked.filter(r => r.status === 'open').length;
+      return `<section class="pp-sec yw-card yw-col-d${I.ws === 'submitted' ? ' yw-done' : ''}">${head}<div class="yw-mini">${g.loose ? '' : `<span class="pill ${I.ws === 'submitted' ? 'pill-green' : sees === 'Waiting for you' || I.ws === 'sent_for_approval' ? 'pill-amber' : 'pill-grey'}">${Esc(sees)}</span>`}
+        <span class="muted-line">📤 ${I.shared.length} shared · 📥 ${I.mine.length} from the client${waiting ? ` · ${waiting} asked` : ''}${I.openAp ? ' · waiting for approval' : ''}</span></div></section>`;
+    }
     const asked = I.asked.length ? `<div class="yw-asked"><b>We asked</b>${I.asked.map(r => `<div class="yw-asked-r"><span>${Esc(r.title)} <span class="muted-line">· ${Esc(PortalKinds[r.kind] || r.kind)}${r.kind === 'upload' && r.doc_group && DocGroups[r.doc_group] ? ' – ' + DocGroups[r.doc_group][0] : ''}${r.due_date ? ' · by ' + Fmt.date(r.due_date) : ''}${r.status === 'submitted' ? ' · client replied' : ''}</span></span>
       <span style="white-space:nowrap;"><button type="button" class="btn btn-primary btn-sm" data-received="${r.id}">Mark received</button> <button type="button" class="btn btn-secondary btn-sm" data-req-cancel="${r.id}">Cancel</button></span></div>`).join('')}</div>` : '';
     const apLine = I.openAp ? `<div class="yw-ap"><b>Sent for approval ${Fmt.date(I.openAp.created_at)}</b> – waiting for the client${I.openAp.due_date ? ` (by ${Fmt.date(I.openAp.due_date)})` : ''}.
@@ -241,6 +254,8 @@ Object.assign(ClientPortalPanel, {
       if (error) { alert('Could not save: ' + error.message); b.disabled = false; return; }
       reload();
     }));
+    C.querySelectorAll('[data-col]').forEach(b => b.addEventListener('click', (e) => { if (e.target.closest('select')) return; this.setCol(b.dataset.col, !this.isCol(b.dataset.col)); this.draw(); }));
+    C.querySelectorAll('[data-col-all]').forEach(b => b.addEventListener('click', () => { b.dataset.keys.split('~').forEach(k => this.setCol(k, b.dataset.colAll === '1')); this.draw(); }));
     C.querySelectorAll('[data-mtd-ref]').forEach(b => b.addEventListener('click', async () => {
       const ref = prompt('HMRC submission reference (the client sees it in their portal):', b.dataset.ref || '');
       if (ref === null) return;
