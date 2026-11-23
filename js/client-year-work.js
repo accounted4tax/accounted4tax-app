@@ -4,6 +4,7 @@
 // Send return for approval (labelled files + figures), Mark submitted (receipt), shared files and the client's uploads. 20 Nov 2026: the balance taken on approval can be changed before sending.
 // Adds methods to ClientPortalPanel (js/client-portal-panel.js). Loaded after it.
 
+const pmWsLabel = (w) => (typeof CLIENT_WORK_STATUSES !== 'undefined' ? CLIENT_WORK_STATUSES : PmClientSees)[w] || w;
 const PmBar = { not_started: 1, awaiting_info: 2, in_progress: 2, sent_for_approval: 3, approved: 3, submitted: 4 };
 // What the client sees for each work status (same words as the portal).
 const PmClientSees = { not_started: 'Not started', awaiting_info: 'Waiting for you', in_progress: 'In progress', sent_for_approval: 'Waiting for your approval', approved: 'Approved – we are submitting it', submitted: 'Submitted' };
@@ -59,31 +60,55 @@ Object.assign(ClientPortalPanel, {
   isCol(key) { try { this._col = this._col || JSON.parse(localStorage.getItem('pm_yw_col') || '{}'); } catch (_) { this._col = this._col || {}; } return !!this._col[(this.clientId || '') + '|' + key]; },
   setCol(key, on) { this.isCol(key); const k = (this.clientId || '') + '|' + key; if (on) this._col[k] = 1; else delete this._col[k]; try { localStorage.setItem('pm_yw_col', JSON.stringify(this._col)); } catch (_) {} },
 
+  // 23 Nov 2026: a card per service; open one to see its years as buttons (same layout as the client portal)
+  pmYears(g) { return g.years.filter(y => { const I = this.yearInfo(g, y); return I.row || y === g.current || I.D.length; }); },
+  pmFocus(g, ys) {
+    const info = ys.map(y => ({ y, I: this.yearInfo(g, y) }));
+    const act = info.filter(x => x.I.openAp || x.I.asked.some(r => r.status === 'open'));
+    if (act.length) return act[act.length - 1].y;
+    const work = info.filter(x => x.I.row && x.I.ws !== 'submitted');
+    return work.length ? work[work.length - 1].y : ys[0];
+  },
   workArea() {
-    const sole = (this.client || {}).client_type !== 'ltd';
     const real = (this.tabs || []).filter(t => !t.loose), loose = (this.tabs || []).find(t => t.loose);
-    if (!sole || !real.length) {
+    if (!real.length) {
       const g = this.curTab(); if (!g) return '<p class="empty-state">No services yet.</p>';
-      return `<div class="pm-chips" style="margin-bottom:6px;">${this.tabs.map(t => `<button type="button" class="pm-chip${t.key === g.key ? ' is-on' : ''}" data-svc="${Esc(t.key)}">${Esc(t.name)}</button>`).join('')}</div>
-        <div class="pm-chips" style="margin-bottom:12px;"><span class="muted-line" style="font-size:12.5px;margin-right:4px;">Year:</span>${g.years.map(y => `<button type="button" class="pm-chip${y === this.sel.yr ? ' is-on' : ''}" data-yr="${Esc(y || '')}">${Esc(pmKeyLabel(y))}</button>`).join('')}</div>
-        ${this.yearBlock(g, this.sel.yr, false)}${this.filingsBlock()}`;
+      return `${this.yearBlock(g, this.sel.yr, false, 'Documents')}${this.filingsBlock()}`;
     }
-    const many = real.length > 1, cards = [], past = [];
-    real.forEach(g => g.years.forEach(y => {
-      const I = this.yearInfo(g, y);
-      if (!I.row && y !== g.current && !I.D.length) return;
-      (I.ws === 'submitted' ? past : cards).push({ g, y, I });
-    }));
-    cards.sort((a, b) => (a.I.row ? 0 : 1) - (b.I.row ? 0 : 1) || pmKeyEnd(a.y) - pmKeyEnd(b.y));
-    past.sort((a, b) => pmKeyEnd(b.y) - pmKeyEnd(a.y));
+    const today = new Date().toISOString().slice(0, 10);
+    const g = this.pmOpen ? real.find(t => t.key === (this.sel || {}).svc) : null;
+    if (g) {
+      let ys = this.pmYears(g); if (!ys.length) ys = [g.years[0]];
+      if (!ys.includes(this.sel.yr)) this.sel.yr = this.pmFocus(g, ys);
+      const yb = ys.map(y => {
+        const J = this.yearInfo(g, y), waiting = J.openAp || J.asked.some(r => r.status === 'open');
+        const sub = J.ws === 'submitted' ? '✓ Submitted' : J.openAp ? 'Waiting for approval' : waiting ? 'Waiting for the client' : J.ws ? (pmWsLabel(J.ws)) : 'Current year';
+        return `<button type="button" class="yw-yb${waiting ? ' act' : J.ws === 'submitted' ? ' done' : ''}" data-yr="${Esc(y || '')}" aria-pressed="${y === this.sel.yr}"><b>${Esc(pmKeyLabel(y))}</b><small>${Esc(sub)}</small></button>`;
+      }).join('');
+      return `<div class="yw-svc-top"><button type="button" class="yw-back" data-svc-back>← All services</button><h3 class="yw-svc-name">${Esc(g.name)}</h3></div>
+        ${ys.length > 1 || this.sel.yr ? `<div class="yw-ybs">${yb}</div>` : ''}
+        ${this.yearBlock(g, this.sel.yr, false)}`;
+    }
+    const card = (t) => {
+      let ys = this.pmYears(t); if (!ys.length) ys = [t.years[0]];
+      const fy = this.pmFocus(t, ys), I = this.yearInfo(t, fy);
+      const acts = ys.filter(y => { const J = this.yearInfo(t, y); return J.openAp || J.asked.some(r => r.status === 'open'); }).length;
+      let due = '';
+      if (pmIsMtd(t.name) && this.mtd) {
+        const q = Object.values(this.mtd).flat().filter(m => m && !['submitted', 'final_declaration'].includes(m.status) && m.deadline).sort((a, b) => a.deadline < b.deadline ? -1 : 1)[0];
+        if (q) due = `<span class="${q.deadline < today ? 'yw-late' : 'muted-line'}">${pmQLabel(q.quarter)} · ${q.deadline < today ? 'overdue – ' : ''}due ${Fmt.date(q.deadline)}</span>`;
+      } else if (I.row && I.ws !== 'submitted' && typeof pmServiceDeadline === 'function') {
+        const d = pmServiceDeadline(I.row, this.client); if (d) due = `<span class="${d.date < today ? 'yw-late' : 'muted-line'}">due ${Fmt.date(d.date)}</span>`;
+      }
+      const ws = I.ws ? (pmWsLabel(I.ws)) : 'Current year';
+      const cls = I.ws === 'submitted' ? 'pill-green' : I.ws === 'sent_for_approval' || I.ws === 'awaiting_info' ? 'pill-amber' : I.ws === 'in_progress' ? 'pill-blue' : 'pill-grey';
+      return `<button type="button" class="yw-sc${acts ? ' act' : ''}" data-svc-open="${Esc(t.key)}" data-yr0="${Esc(fy || '')}">
+        <span class="yw-sc-t"><b>${Esc(t.name)}</b>${acts ? ' <span class="pill pill-amber">Waiting for the client</span>' : ''}</span>
+        <span class="yw-sc-m">${fy ? `<b>${Esc(pmKeyLabel(fy))}</b>` : ''} <span class="pill ${cls}">${Esc(ws)}</span></span>
+        ${due}${ys.length > 1 ? `<span class="muted-line">${ys.length} years</span>` : ''}<span class="yw-sc-go" aria-hidden="true">›</span></button>`;
+    };
     const looseHas = loose && this.docs.some(d => d.doc_group !== 'filings' && !this.tabs.ids[d.client_service_id]);
-    const allKeys = cards.map(x => `${x.g.key}|${x.y || ''}`);
-    const tools = allKeys.length > 1 ? `<div class="yw-tools"><button type="button" class="btn-link" data-col-all="1" data-keys="${Esc(allKeys.join('~'))}">Collapse all</button> · <button type="button" class="btn-link" data-col-all="0" data-keys="${Esc(allKeys.join('~'))}">Expand all</button></div>` : '';
-    return tools + cards.map(x => this.yearBlock(x.g, x.y, many)).join('')
-      + (past.length ? `<section class="pp-sec"><div class="pp-sec-h"><h3>Past years</h3></div><div class="pp-sec-b">${past.map(x => {
-        const k = `${x.g.key}|${x.y || ''}`, open = this.openPast === k;
-        return `<div class="yw-past"><button type="button" class="yw-past-hit" data-past="${Esc(k)}" aria-expanded="${open}"><b>${many ? Esc(x.g.name) + ' · ' : ''}${Esc(pmKeyLabel(x.y))}</b> <span class="muted-line">· Submitted${x.I.row && x.I.row.submitted_at ? ' ' + Fmt.date(x.I.row.submitted_at) : ''}</span><span style="margin-left:auto;">${open ? '▴' : '▾'}</span></button>${open ? this.yearBlock(x.g, x.y, many) : ''}</div>`;
-      }).join('')}</div></section>` : '')
+    return `<div class="yw-grid">${real.map(card).join('')}</div>`
       + (looseHas ? this.yearBlock(loose, null, false, 'General documents (not linked to a service)') : '')
       + this.filingsBlock();
   },
@@ -98,11 +123,11 @@ Object.assign(ClientPortalPanel, {
     const act = this.act && this.act.key === key ? this.act.kind : null;
     const WS = typeof CLIENT_WORK_STATUSES !== 'undefined' ? CLIENT_WORK_STATUSES : PmClientSees;
     const sees = I.ws ? (I.asked.some(r => r.status === 'open') && I.ws !== 'submitted' ? 'Waiting for you' : PmClientSees[I.ws]) : 'Current year';
-    const col = this.isCol(key);
-    const tog = `<button type="button" class="yw-tog" data-col="${Esc(key)}" aria-expanded="${!col}" title="${col ? 'Expand' : 'Collapse'}">${col ? '▸' : '▾'}</button>`;
+    const col = this.pmOpen ? false : this.isCol(key);
+    const tog = this.pmOpen ? '' : `<button type="button" class="yw-tog" data-col="${Esc(key)}" aria-expanded="${!col}" title="${col ? 'Expand' : 'Collapse'}">${col ? '▸' : '▾'}</button>`;
     const head = `<div class="yw-h"><span class="yw-ht">${tog}<h3 class="yw-h3" data-col="${Esc(key)}">${Esc(title || ((showName ? g.name + ' · ' : '') + pmKeyLabel(y)))}</h3></span>
       ${I.row ? `<label class="yw-ws">Work status <select class="input" data-ws="${I.row.id}">${Object.entries(WS).map(([k, v]) => `<option value="${k}" ${k === I.ws ? 'selected' : ''}>${Esc(v)}</option>`).join('')}</select></label>` : (g.loose ? '' : '<span class="muted-line" style="font-size:12.5px;">No service set up for this year (add it on the Work tab)</span>')}</div>`;
-    const bar = g.loose ? '' : `${this.bar(I.ws)}<p class="yw-sees">Client sees: <span class="pill ${I.ws === 'submitted' ? 'pill-green' : sees === 'Waiting for you' || I.ws === 'sent_for_approval' ? 'pill-amber' : 'pill-grey'}">${Esc(sees)}</span></p>`;
+    const bar = g.loose ? '' : `${pmIsMtd(g.name) ? '' : this.bar(I.ws)}<p class="yw-sees">Client sees: <span class="pill ${I.ws === 'submitted' ? 'pill-green' : sees === 'Waiting for you' || I.ws === 'sent_for_approval' ? 'pill-amber' : 'pill-grey'}">${Esc(sees)}</span></p>`;
     if (col) {
       const waiting = I.asked.filter(r => r.status === 'open').length;
       return `<section class="pp-sec yw-card yw-col-d${I.ws === 'submitted' ? ' yw-done' : ''}">${head}<div class="yw-mini">${g.loose ? '' : `<span class="pill ${I.ws === 'submitted' ? 'pill-green' : sees === 'Waiting for you' || I.ws === 'sent_for_approval' ? 'pill-amber' : 'pill-grey'}">${Esc(sees)}</span>`}
@@ -254,6 +279,8 @@ Object.assign(ClientPortalPanel, {
       if (error) { alert('Could not save: ' + error.message); b.disabled = false; return; }
       reload();
     }));
+    C.querySelectorAll('[data-svc-open]').forEach(b => b.addEventListener('click', () => { this.pmOpen = true; this.sel = { svc: b.dataset.svcOpen, yr: b.dataset.yr0 || null }; this.act = null; this.draw(); const top = this.containerEl && this.containerEl.querySelector('.yw-svc-top'); if (top) top.scrollIntoView({ block: 'nearest' }); }));
+    C.querySelectorAll('[data-svc-back]').forEach(b => b.addEventListener('click', () => { this.pmOpen = false; this.act = null; this.draw(); }));
     C.querySelectorAll('[data-col]').forEach(b => b.addEventListener('click', (e) => { if (e.target.closest('select')) return; this.setCol(b.dataset.col, !this.isCol(b.dataset.col)); this.draw(); }));
     C.querySelectorAll('[data-col-all]').forEach(b => b.addEventListener('click', () => { b.dataset.keys.split('~').forEach(k => this.setCol(k, b.dataset.colAll === '1')); this.draw(); }));
     C.querySelectorAll('[data-mtd-ref]').forEach(b => b.addEventListener('click', async () => {

@@ -14,6 +14,7 @@ const ClientPortalPanel = {
   // opts.sections: 'access','requests','docs','messages','approvals' (default all)
   // opts.messagesEl: draw Messages into this element instead (e.g. a column on the right)
   async render(clientId, containerEl, client, opts) {
+    if (this.clientId !== clientId) { this.pmOpen = false; this.sel = null; this.act = null; } // another client: start from the service cards
     this.clientId = clientId; this.containerEl = containerEl; this.client = client || {};
     this.opts = opts || this.opts || {};
     this.sections = (this.opts.sections || ['access', 'requests', 'docs', 'messages', 'approvals']).map(s => s === 'files' ? 'docs' : s);
