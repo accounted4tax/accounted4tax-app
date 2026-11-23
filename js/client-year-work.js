@@ -61,13 +61,13 @@ Object.assign(ClientPortalPanel, {
   setCol(key, on) { this.isCol(key); const k = (this.clientId || '') + '|' + key; if (on) this._col[k] = 1; else delete this._col[k]; try { localStorage.setItem('pm_yw_col', JSON.stringify(this._col)); } catch (_) {} },
 
   // 23 Nov 2026: a card per service; open one to see its years as buttons (same layout as the client portal)
-  pmYears(g) { return g.years.filter(y => { const I = this.yearInfo(g, y); return I.row || y === g.current || I.D.length; }); },
+  pmYears(g) { return g.years.filter(y => { const I = this.yearInfo(g, y); return I.row || y === g.current || I.D.length; }).sort((a, b) => pmKeyEnd(a) - pmKeyEnd(b)); },
   pmFocus(g, ys) {
     const info = ys.map(y => ({ y, I: this.yearInfo(g, y) }));
     const act = info.filter(x => x.I.openAp || x.I.asked.some(r => r.status === 'open'));
-    if (act.length) return act[act.length - 1].y;
+    if (act.length) return act[0].y;
     const work = info.filter(x => x.I.row && x.I.ws !== 'submitted');
-    return work.length ? work[work.length - 1].y : ys[0];
+    return work.length ? work[0].y : ys[ys.length - 1];
   },
   workArea() {
     const real = (this.tabs || []).filter(t => !t.loose), loose = (this.tabs || []).find(t => t.loose);
