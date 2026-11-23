@@ -690,3 +690,22 @@ tr.pm-f-them > td:first-child{border-left:4px solid #D9A400}
 .yw-tools{display:flex;justify-content:flex-end;gap:6px;font-size:13px;margin:0 0 6px}
 .yw-ht{display:flex;align-items:center;gap:6px;min-width:0}
 .yw-ht h3{margin:0}
+
+/* 23 Nov 2026: service cards → years */
+.yw-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px;margin-bottom:12px}
+.yw-sc{position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:5px;text-align:left;background:#fff;border:1px solid #E3E6EB;border-radius:10px;padding:12px 32px 12px 14px;cursor:pointer;font:inherit;color:inherit;min-height:84px}
+.yw-sc:hover{border-color:#0E6E6B;box-shadow:0 3px 10px rgba(14,110,107,.12)}
+.yw-sc.act{border-color:#F3DFA2;background:#FFFDF5}
+.yw-sc-t{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center}.yw-sc-t b{font-size:14.5px;color:#14213D}
+.yw-sc-m{display:flex;gap:8px;align-items:center;font-size:13px}
+.yw-sc .muted-line,.yw-sc .yw-late{font-size:12.5px}
+.yw-late{color:#B3261E;font-weight:600}
+.yw-sc-go{position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:24px;color:#0E6E6B}
+.yw-svc-top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:8px}
+.yw-back{background:#fff;border:1px solid #E3E6EB;border-radius:8px;min-height:38px;padding:0 14px;font:600 13.5px inherit;color:#0E6E6B;cursor:pointer}
+.yw-svc-name{margin:0;font-size:17px}
+.yw-ybs{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.yw-yb{display:flex;flex-direction:column;align-items:flex-start;min-height:46px;min-width:110px;padding:7px 14px;border:1px solid #E3E6EB;border-radius:9px;background:#fff;cursor:pointer;font:inherit;color:#14213D}
+.yw-yb b{font-size:14.5px}.yw-yb small{font-size:11.5px;color:#64748B}
+.yw-yb[aria-pressed="true"]{border:2px solid #0E6E6B;background:#EFF8F7;padding:6px 13px}
+.yw-yb.act small{color:#9A6B00;font-weight:600}.yw-yb.done small{color:#1E7B45}
