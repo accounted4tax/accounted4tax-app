@@ -126,7 +126,7 @@ const ClientPortalPanel = {
   fileRow(d, P) {
     const fromClient = d.uploaded_by === 'client';
     const pill = fromClient ? (d.verified ? '<span class="pill pill-green">Checked</span>' : '<span class="pill pill-amber">New</span>') : (d.visible_to_client ? '<span class="pill pill-green">Shared</span>' : '<span class="pill pill-grey">Hidden</span>');
-    return `<tr><td>${Esc(d.file_name)}<div class="muted-line" style="font-size:11.5px;">${Fmt.date(d.created_at)} · ${Esc(pmKeyLabel(pmNormKey(d.tax_year)))}</div></td><td>${pill}</td>
+    return `<tr class="${fromClient ? 'pm-f-them' : 'pm-f-us'}"><td>${Esc(d.file_name)}<div class="muted-line" style="font-size:11.5px;">${Fmt.date(d.created_at)} · ${Esc(pmKeyLabel(pmNormKey(d.tax_year)))}</div></td><td>${pill}</td>
       <td style="white-space:nowrap;text-align:right;"><button type="button" class="btn btn-secondary btn-sm" data-pv="${d.id}">Preview</button> <button type="button" class="btn btn-secondary btn-sm" data-dl="${d.id}">Download</button>
       ${fromClient && !d.verified ? ` <button type="button" class="btn btn-secondary btn-sm" data-verify="${d.id}">Mark checked</button>` : ''}
       ${!fromClient ? ` <button type="button" class="btn btn-secondary btn-sm" data-share="${d.id}" data-on="${d.visible_to_client ? '0' : '1'}">${d.visible_to_client ? 'Hide' : 'Share'}</button>` : ''}
