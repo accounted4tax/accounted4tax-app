@@ -99,6 +99,28 @@ Object.assign(ClientPortalPanel, {
         <div class="muted-line" style="font-size:12.5px;">${Esc(I.openAp.title)}${I.openAp.figures ? ' · ' + Esc(pmFigText(I.openAp.figures, y)) : ''}</div>
         <button type="button" class="btn btn-secondary btn-sm" data-req-cancel="${I.openAp.id}" style="margin-top:6px;">Withdraw</button></div>`
       : I.doneAp ? `<div class="yw-ok">✔ <b>Approved by the client ${Fmt.date(I.doneAp.completed_at)}</b>${I.doneAp.figures ? ` <span class="muted-line">· ${Esc(pmFigText(I.doneAp.figures, y))}</span>` : ''} <span class="muted-line">(record under Records → Approval records)</span></div>` : '';
+    // MTD: the quarters of this tax year; the files below show the selected quarter
+    const QS = !g.loose && pmIsMtd(g.name) && this.mtd ? this.mtd[y] || null : null;
+    let qSel = null, qRow = null;
+    if (QS && QS.length) {
+      const filed = (m) => ['submitted', 'final_declaration'].includes(m.status);
+      if (this.mtdQ[key] === undefined) { const f = QS.find(m => !filed(m)); this.mtdQ[key] = f ? f.quarter : 'all'; }
+      qSel = this.mtdQ[key]; qRow = QS.find(m => m.quarter === qSel) || null;
+      const inQ = (d, q) => q === 'all' || d.quarter === q;
+      I.shared = I.shared.filter(d => inQ(d, qSel)); I.mine = I.mine.filter(d => inQ(d, qSel));
+      const today = new Date().toISOString().slice(0, 10);
+      const chip = (m) => {
+        const them = I.D.filter(d => d.uploaded_by === 'client' && d.quarter === m.quarter), us = I.D.filter(d => d.uploaded_by !== 'client' && d.quarter === m.quarter);
+        const st = filed(m) ? `Filed ${m.submitted_at ? Fmt.date(m.submitted_at) : ''}` : m.deadline && m.deadline < today ? `Overdue – due ${Fmt.date(m.deadline)}` : `Due ${Fmt.date(m.deadline)}`;
+        return `<button type="button" class="yw-q${qSel === m.quarter ? ' is-on' : ''}${filed(m) ? ' is-filed' : m.deadline && m.deadline < today ? ' is-late' : ''}" data-mtd-q="${Esc(key)}" data-q="${m.quarter}">
+          <b>${pmQLabel(m.quarter)}</b><small>${Esc(st)}</small><span class="yw-qn"><i class="yw-qn-us" title="Shared by you">${us.length}</i><i class="yw-qn-them" title="Client's uploads">${them.length}</i></span></button>`;
+      };
+      I.qHtml = `<div class="yw-qs"><button type="button" class="yw-q${qSel === 'all' ? ' is-on' : ''}" data-mtd-q="${Esc(key)}" data-q="all"><b>All</b><small>Whole year</small></button>${QS.map(chip).join('')}</div>
+        ${qRow ? `<div class="yw-q-info"><span><b>${Esc(qRow.quarter_label || pmQLabel(qRow.quarter))}</b> <span class="muted-line">· ${qRow.quarter === 5 ? 'whole tax year' : Fmt.date(qRow.period_start) + ' – ' + Fmt.date(qRow.period_end)} · due ${Fmt.date(qRow.deadline)}${qRow.hmrc_ref ? ' · HMRC ref ' + Esc(qRow.hmrc_ref) : ''}</span></span>
+          ${filed(qRow) ? `<span><span class="pill pill-green">Filed – locked for the client</span> <button type="button" class="btn btn-secondary btn-sm" data-mtd-unlock="${qRow.id}">Unlock</button></span>`
+            : `<button type="button" class="btn btn-primary btn-sm" data-mtd-file="${qRow.id}" data-label="${Esc(qRow.quarter_label || '')}">Mark ${Esc(pmQLabel(qRow.quarter))} filed</button>`}</div>
+          <p class="muted-line" style="font-size:12px;margin:4px 0 0;">Once filed, the client can't add files to it – anything they upload later goes to the next open quarter${qRow.quarter >= 4 ? (qRow.quarter === 4 ? ' (the final declaration)' : ' (Q1 of the next tax year)') : ''}.</p>` : ''}`;
+    }
     const btn = (kind, label, primary) => `<button type="button" class="btn ${act === kind ? 'btn-primary' : primary ? 'btn-primary' : 'btn-secondary'} btn-sm" data-act="${kind}" data-key="${Esc(key)}" aria-expanded="${act === kind}">${label}</button>`;
     const actions = `<div class="yw-acts">${btn('ask', '+ Ask the client for something')}${g.loose ? '' : btn('send', 'Send return for approval', I.ws === 'in_progress')}${g.loose || !I.row ? '' : btn('submit', I.ws === 'submitted' ? 'Edit submission' : 'Mark submitted', I.ws === 'approved')}${btn('share', 'Share other files')}</div>`;
     const panel = act === 'ask' ? this.askPanel(g, y) : act === 'send' ? this.sendPanel(g, y, I) : act === 'submit' ? this.submitPanel(g, y, I) : act === 'share' ? this.sharePanel(g, y) : '';
@@ -113,7 +135,7 @@ Object.assign(ClientPortalPanel, {
     const sharedHtml = I.shared.length ? `<ul class="yw-files">${I.shared.map(d => `<li><span><b>${Esc(d.doc_type ? PmDocTypes[d.doc_type] || d.doc_type : d.file_name)}</b><span class="muted-line" style="display:block;font-size:11.5px;">${d.doc_type ? Esc(d.file_name) + ' · ' : ''}${Fmt.date(d.created_at)}${d.visible_to_client ? '' : ' · hidden'}</span></span>
         <span class="yw-file-acts"><button type="button" class="btn btn-secondary btn-sm" data-pv="${d.id}">Preview</button><button type="button" class="btn btn-secondary btn-sm" data-share="${d.id}" data-on="${d.visible_to_client ? '0' : '1'}">${d.visible_to_client ? 'Hide' : 'Share'}</button>
         <select class="input" data-move-to="${d.id}" title="Move to another service or year">${this.moveOpts(d)}</select></span></li>`).join('')}</ul>` : '<p class="empty-state">Nothing shared yet.</p>';
-    return `<section class="pp-sec yw-card${I.ws === 'submitted' ? ' yw-done' : ''}">${head}<div class="pp-sec-b">${bar}${asked}${apLine}${actions}${panel}
+    return `<section class="pp-sec yw-card${I.ws === 'submitted' ? ' yw-done' : ''}">${head}<div class="pp-sec-b">${bar}${I.qHtml || ''}${asked}${apLine}${actions}${panel}
       <div class="yw-cols"><div class="yw-col yw-col-us"><h4 class="yw-col-h">📤 Shared with the client (${I.shared.length})</h4>${sharedHtml}</div><div class="yw-col yw-col-them"><h4 class="yw-col-h">📥 Client's uploads (${I.mine.length})</h4>${groups}</div></div></div></section>`;
   },
 
@@ -141,7 +163,7 @@ Object.assign(ClientPortalPanel, {
       ${S.slots.map(slot).join('')}
       ${S.figs === 'sa' ? `<div class="yw-figs"><b>Figures (you type them; the portal adds them up)</b><div style="display:flex;gap:8px;flex-wrap:wrap;">${num('balancing', 'Balancing payment £')}${num('poa1', '1st payment on account £')}${num('poa2', '2nd payment on account £')}${num('refund', 'Refund due £')}</div></div>` : ''}
       ${S.figs === 'ct' ? `<div class="yw-figs"><b>Figures</b><div style="display:flex;gap:8px;flex-wrap:wrap;">${num('ct', 'Corporation Tax to pay £')}<label class="form-field" style="max-width:190px;"><span>Due date</span><input name="due" type="date" class="input" value="${Esc(fig.due || due)}"></label></div></div>` : ''}
-      <label class="form-field"><span>Title (the client sees this)</span><input name="title" class="input" maxlength="160" value="${Esc(fig.title || `Please approve your ${g.name} ${pmKeyLabel(y)}`)}"></label>
+      <label class="form-field"><span>Title (the client sees this)</span><input name="title" class="input" maxlength="160" value="${Esc(fig.title || (() => { const q = pmIsMtd(g.name) && this.mtdQ ? this.mtdQ[`${g.key}|${y || ''}`] : null; return typeof q === 'number' ? `Please approve your MTD ${q === 5 ? 'final declaration' : 'update ' + pmQLabel(q)} ${pmKeyLabel(y)}` : `Please approve your ${g.name} ${pmKeyLabel(y)}`; })())}"></label>
       <label class="form-field" style="max-width:200px;"><span>Approve by</span><input name="due_date" type="date" class="input" value="${Esc(fig.due_date || '')}"></label>
       <div class="yw-bal" id="yw-bal"></div>
       <label style="font-size:13px;"><input type="checkbox" name="email" checked> Email the client</label>
@@ -183,7 +205,7 @@ Object.assign(ClientPortalPanel, {
     if (up.error) throw new Error(`${file.name}: ${up.error.message}`);
     const { data, error } = await sb.from('documents').insert({ client_id: this.clientId, client_service_id: row ? row.id : null, category: docType === 'receipt' ? 'other' : 'tax_return',
       doc_group: 'returns', doc_type: docType, tax_year: y || null, file_name: file.name, file_url: 'portal-docs/' + path, file_size: file.size, mime_type: file.type || null,
-      uploaded_by: 'practice', verified: true, visible_to_client: true }).select('id').single();
+      uploaded_by: 'practice', verified: true, visible_to_client: true, quarter: typeof this._q === 'number' ? this._q : null }).select('id').single();
     if (error) throw new Error(`${file.name}: ${error.message}`);
     return data.id;
   },
@@ -206,6 +228,23 @@ Object.assign(ClientPortalPanel, {
       const f = C.querySelector('.yw-panel'); if (f && f.scrollIntoView) f.scrollIntoView({ block: 'nearest' });
     }));
     C.querySelectorAll('[data-act-close]').forEach(b => b.addEventListener('click', () => { this.act = null; this.draw(); }));
+    // MTD quarters (23 Nov 2026)
+    C.querySelectorAll('[data-mtd-q]').forEach(b => b.addEventListener('click', () => { const q = b.dataset.q; this.mtdQ[b.dataset.mtdQ] = q === 'all' ? 'all' : Number(q); this.draw(); }));
+    C.querySelectorAll('[data-mtd-file]').forEach(b => b.addEventListener('click', async () => {
+      const ref = prompt(`Mark ${b.dataset.label || 'this quarter'} as filed with HMRC.\nHMRC reference (optional):`, '');
+      if (ref === null) return;
+      b.disabled = true;
+      const { error } = await sb.rpc('pm_mtd_set', { p_id: b.dataset.mtdFile, p_filed: true, p_ref: ref.trim() || null });
+      if (error) { alert('Could not save: ' + error.message); b.disabled = false; return; }
+      reload();
+    }));
+    C.querySelectorAll('[data-mtd-unlock]').forEach(b => b.addEventListener('click', async () => {
+      if (!confirm('Unlock this quarter? The client will be able to add files to it again.')) return;
+      b.disabled = true;
+      const { error } = await sb.rpc('pm_mtd_set', { p_id: b.dataset.mtdUnlock, p_filed: false, p_ref: null });
+      if (error) { alert('Could not save: ' + error.message); b.disabled = false; return; }
+      reload();
+    }));
     C.querySelectorAll('[data-view-key]').forEach(b => b.addEventListener('click', () => { this.openGroup = this.openGroup === b.dataset.viewKey ? null : b.dataset.viewKey; this.draw(); }));
     C.querySelectorAll('[data-check-key]').forEach(b => b.addEventListener('click', async () => {
       const [key, grp] = b.dataset.checkKey.split('::'), p = parse(key), I = this.yearInfo(p.g, p.y);
@@ -295,9 +334,10 @@ Object.assign(ClientPortalPanel, {
           this.balInfo = null;
         }
         const ids = [];
+        this._q = this.mtdQ ? this.mtdQ[`${g.key}|${y || ''}`] : null;
         for (const t of S.slots) if (files[t]) ids.push(await this.shareFile(files[t], row, y, t));
         const { error } = await sb.from('portal_requests').insert({ client_id: this.clientId, kind: 'approve', title: (String(f.get('title') || '').trim() || `Please approve your ${g.name} ${pmKeyLabel(y)}`).slice(0, 160),
-          document_id: ids[0], document_ids: ids, figures, due_date: f.get('due_date') || null, tax_year: y, client_service_id: row ? row.id : null });
+          document_id: ids[0], document_ids: ids, figures, due_date: f.get('due_date') || null, tax_year: y, client_service_id: row ? row.id : null, quarter: typeof this._q === 'number' ? this._q : null });
         if (error) throw new Error(error.message);
         if (exact) await this.setWork(exact.id, { work_status: 'sent_for_approval' });
         if (f.get('email')) this.notify('approve');
@@ -313,6 +353,7 @@ Object.assign(ClientPortalPanel, {
       if (!row) { alert('There is no service for this year. Add it on the Work tab first.'); return; }
       lockForm(sub, 'Saving…');
       try {
+        this._q = this.mtdQ ? this.mtdQ[`${g.key}|${y || ''}`] : null;
         if (files.receipt) await this.shareFile(files.receipt, row, y, 'receipt');
         await this.setWork(row.id, { work_status: 'submitted', submitted_at: f.get('submitted_at') || new Date().toISOString().slice(0, 10) });
         if (f.get('email')) this.notify('document');
