@@ -7,6 +7,8 @@
 const PmBar = { not_started: 1, awaiting_info: 2, in_progress: 2, sent_for_approval: 3, approved: 3, submitted: 4 };
 // What the client sees for each work status (same words as the portal).
 const PmClientSees = { not_started: 'Not started', awaiting_info: 'Waiting for you', in_progress: 'In progress', sent_for_approval: 'Waiting for your approval', approved: 'Approved – we are submitting it', submitted: 'Submitted' };
+// 23 Nov 2026: MTD summaries carry their quarter – "MTD Q1 summary" … "MTD end of period summary"
+const pmDocLabel = (t, q) => t === 'mtd_summary' && q >= 1 && q <= 5 ? (q === 5 ? 'MTD end of period summary' : `MTD Q${q} summary`) : (PmDocTypes[t] || t);
 const PmDocTypes = { sa100: 'Tax return (SA100)', tax_calc: 'Tax calculation (SA302)', supporting: 'Other supporting document', accounts: 'Annual accounts', ct600: 'CT600', ct_comp: 'Corporation Tax computation', vat_return: 'VAT return', cs_draft: 'Confirmation statement (draft)', mtd_summary: 'MTD quarterly summary', return_summary: 'Return summary', receipt: 'HMRC / Companies House receipt', id: 'Proof of identity' };
 // Labelled upload slots for "Send return for approval", by service name. The first slot is required.
 const pmSlots = (name) => {
@@ -132,7 +134,7 @@ Object.assign(ClientPortalPanel, {
         <span style="white-space:nowrap;">${fresh ? `<button type="button" class="btn btn-secondary btn-sm" data-check-key="${Esc(gk)}">Mark all checked</button> ` : ''}${recv.length ? `<button type="button" class="btn btn-secondary btn-sm" data-view-key="${Esc(gk)}">${open ? 'Hide' : 'View'}</button>` : ''}</span></div>
         ${open ? `<table class="data-table" style="width:100%;font-size:12.5px;"><tbody>${recv.map(d => this.fileRow(d, P)).join('')}</tbody></table>` : ''}</div>`;
     }).join('');
-    const sharedHtml = I.shared.length ? `<ul class="yw-files">${I.shared.map(d => `<li><span><b>${Esc(d.doc_type ? PmDocTypes[d.doc_type] || d.doc_type : d.file_name)}</b><span class="muted-line" style="display:block;font-size:11.5px;">${d.doc_type ? Esc(d.file_name) + ' · ' : ''}${Fmt.date(d.created_at)}${d.visible_to_client ? '' : ' · hidden'}</span></span>
+    const sharedHtml = I.shared.length ? `<ul class="yw-files">${I.shared.map(d => `<li><span><b>${Esc(d.doc_type ? pmDocLabel(d.doc_type, d.quarter) : d.file_name)}</b><span class="muted-line" style="display:block;font-size:11.5px;">${d.doc_type ? Esc(d.file_name) + ' · ' : ''}${Fmt.date(d.created_at)}${d.visible_to_client ? '' : ' · hidden'}</span></span>
         <span class="yw-file-acts"><button type="button" class="btn btn-secondary btn-sm" data-pv="${d.id}">Preview</button><button type="button" class="btn btn-secondary btn-sm" data-share="${d.id}" data-on="${d.visible_to_client ? '0' : '1'}">${d.visible_to_client ? 'Hide' : 'Share'}</button>
         <select class="input" data-move-to="${d.id}" title="Move to another service or year">${this.moveOpts(d)}</select></span></li>`).join('')}</ul>` : '<p class="empty-state">Nothing shared yet.</p>';
     return `<section class="pp-sec yw-card${I.ws === 'submitted' ? ' yw-done' : ''}">${head}<div class="pp-sec-b">${bar}${I.qHtml || ''}${asked}${apLine}${actions}${panel}
@@ -154,8 +156,9 @@ Object.assign(ClientPortalPanel, {
 
   sendPanel(g, y, I) {
     const S = pmSlots(g.name), f = this.slotFiles || {}, fig = this.figDraft || {};
+    const sq = pmIsMtd(g.name) && this.mtdQ ? this.mtdQ[`${g.key}|${y || ''}`] : null;
     const due = S.figs === 'ct' && /^YE /.test(y || '') ? pmYwAddMonths(y.slice(3), 9, 1) : '';
-    const slot = (t, i) => `<div class="yw-slot"><span><b>${Esc(PmDocTypes[t])}</b>${i === 0 ? ' <span class="pill pill-amber">required</span>' : ' <span class="muted-line">(optional)</span>'}</span>
+    const slot = (t, i) => `<div class="yw-slot"><span><b>${Esc(pmDocLabel(t, sq))}</b>${i === 0 ? ' <span class="pill pill-amber">required</span>' : ' <span class="muted-line">(optional)</span>'}</span>
       ${f[t] ? `<span>${Esc(f[t].name)} <button type="button" class="btn btn-secondary btn-sm" data-slot-clear="${t}" aria-label="Remove ${Esc(f[t].name)}">×</button></span>` : `<label class="btn btn-secondary btn-sm" style="cursor:pointer;">Choose file<input type="file" data-slot="${t}" accept=".pdf,.jpg,.jpeg,.png" hidden></label>`}</div>`;
     const num = (n, l) => `<label class="form-field" style="max-width:170px;"><span>${l}</span><input name="${n}" class="input" inputmode="decimal" value="${Esc(fig[n] != null ? fig[n] : '')}" placeholder="0.00"></label>`;
     return `<form class="yw-panel" id="yw-send">
@@ -317,7 +320,7 @@ Object.assign(ClientPortalPanel, {
     if (send) send.addEventListener('submit', async (e) => {
       e.preventDefault();
       const f = new FormData(send), { g, y } = cur(), S = pmSlots(g.name), files = this.slotFiles || {};
-      if (!files[S.slots[0]]) { alert(`Please add the ${PmDocTypes[S.slots[0]]} first.`); return; }
+      if (!files[S.slots[0]]) { alert(`Please add the ${pmDocLabel(S.slots[0], pmIsMtd(g.name) && this.mtdQ ? this.mtdQ[`${g.key}|${y || ''}`] : null)} first.`); return; }
       const row = pmLinkRow(g, y), exact = pmRowFor(g, y);
       const n = (k) => { const v = String(f.get(k) || '').replace(/[£,\s]/g, ''); return v === '' ? null : Number(v); };
       const bad = ['balancing', 'poa1', 'poa2', 'refund', 'ct'].filter(k => f.has(k) && n(k) != null && (isNaN(n(k)) || n(k) < 0));
