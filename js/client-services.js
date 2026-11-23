@@ -147,6 +147,7 @@ const ClientServicesPanel = {
           <td>${Esc(cs.price_label || Fmt.money(cs.custom_price))}</td>
           <td class="align-right" style="white-space:nowrap;">
             <button class="btn btn-secondary btn-sm" data-edit="${cs.id}">Edit</button>
+            ${cs.status === 'paused' ? `<button class="btn btn-secondary btn-sm" data-pause="${cs.id}" data-on="0">Resume</button>` : cs.status === 'active' ? `<button class="btn btn-secondary btn-sm" data-pause="${cs.id}" data-on="1">Pause</button>` : ''}
             <button class="btn btn-danger-outline btn-sm" data-remove="${cs.id}">Remove</button>
           </td>
         </tr>`).join('')}</tbody></table></div>`;
@@ -172,6 +173,9 @@ const ClientServicesPanel = {
     });
     this.containerEl.querySelectorAll('[data-edit]').forEach(btn => {
       btn.addEventListener('click', () => this.openForm(this.assigned.find(a => a.id === btn.dataset.edit)));
+    });
+    this.containerEl.querySelectorAll('[data-pause]').forEach(btn => {
+      btn.addEventListener('click', () => this.handlePause(btn.dataset.pause, btn.dataset.on === '1'));
     });
     this.containerEl.querySelectorAll('[data-remove]').forEach(btn => {
       btn.addEventListener('click', () => this.handleRemove(btn.dataset.remove));
@@ -286,8 +290,21 @@ const ClientServicesPanel = {
     });
   },
 
+  // 23 Nov 2026: pause (e.g. the client has not paid) – hidden from the portal until resumed; nothing is deleted
+  async handlePause(id, on) {
+    const cs = this.assigned.find(a => a.id === id), name = cs && cs.services_catalogue ? cs.services_catalogue.name : 'this service';
+    if (!confirm(on
+      ? `Are you sure you want to pause "${name}"?\n\nThe client will no longer see it in their portal (its files and requests are hidden too). Nothing is deleted – you can resume it at any time.`
+      : `Resume "${name}"?\n\nThe client will see it in their portal again.`)) return;
+    const { error } = await sb.from('client_services').update({ status: on ? 'paused' : 'active' }).eq('id', id);
+    if (error) { alert(`Could not save: ${error.message}`); return; }
+    this.render(this.clientId, this.containerEl, this.opts);
+    if (this.opts && typeof this.opts.onChange === 'function') this.opts.onChange();
+  },
+
   async handleRemove(id) {
-    if (!confirm('Remove this service from the client?')) return;
+    const cs = this.assigned.find(a => a.id === id), name = cs && cs.services_catalogue ? cs.services_catalogue.name : 'this service';
+    if (!confirm(`Are you sure you want to remove "${name}"?\n\nIt is removed from the client's portal: open requests are withdrawn and its files are hidden from the client (you keep them here). Quarters already filed and invoices are kept as a record.\n\nThis cannot be undone – to stop it for now, use Pause instead.`)) return;
     const { error } = await sb.from('client_services').delete().eq('id', id);
     if (error) {
       alert(`Could not remove service: ${error.message}`);
