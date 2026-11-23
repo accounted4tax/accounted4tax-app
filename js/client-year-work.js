@@ -36,7 +36,8 @@ Object.assign(ClientPortalPanel, {
   // Everything for one service + year.
   yearInfo(g, y) {
     const row = g.loose ? null : pmRowFor(g, y);
-    const inIt = (x) => (row && x.client_service_id === row.id) || ((g.loose ? !this.tabs.ids[x.client_service_id] : this.tabs.ids[x.client_service_id] === g.key) && pmNormKey(x.tax_year) === y);
+    // an ongoing service's items go to the year they belong to; a yearly service's items all belong to its year
+    const inIt = (x) => (row && x.client_service_id === row.id && (pmRowKey(row) || pmItemKey(g, this.client, x) === y)) || ((g.loose ? !this.tabs.ids[x.client_service_id] : this.tabs.ids[x.client_service_id] === g.key) && pmNormKey(x.tax_year) === y);
     const R = this.requests.filter(r => r.status !== 'cancelled' && inIt(r));
     const D = this.docs.filter(d => d.doc_group !== 'filings' && inIt(d));
     const ap = R.filter(r => r.kind === 'approve');
