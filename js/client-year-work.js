@@ -115,11 +115,11 @@ Object.assign(ClientPortalPanel, {
         const them = I.D.filter(d => d.uploaded_by === 'client' && d.quarter === m.quarter), us = I.D.filter(d => d.uploaded_by !== 'client' && d.quarter === m.quarter);
         const st = filed(m) ? `Filed ${m.submitted_at ? Fmt.date(m.submitted_at) : ''}` : m.deadline && m.deadline < today ? `Overdue – due ${Fmt.date(m.deadline)}` : `Due ${Fmt.date(m.deadline)}`;
         return `<button type="button" class="yw-q${qSel === m.quarter ? ' is-on' : ''}${filed(m) ? ' is-filed' : m.deadline && m.deadline < today ? ' is-late' : ''}" data-mtd-q="${Esc(key)}" data-q="${m.quarter}">
-          <b>${pmQLabel(m.quarter)}</b><small>${Esc(st)}</small><span class="yw-qn"><i class="yw-qn-us" title="Shared by you">${us.length}</i><i class="yw-qn-them" title="Client's uploads">${them.length}</i></span></button>`;
+          <b>${pmQLabel(m.quarter)}</b><small>${Esc(st)}</small>${filed(m) && m.hmrc_ref ? `<small class="yw-q-ref">Ref ${Esc(m.hmrc_ref)}</small>` : ''}<span class="yw-qn"><i class="yw-qn-us" title="Shared by you">${us.length}</i><i class="yw-qn-them" title="Client's uploads">${them.length}</i></span></button>`;
       };
       I.qHtml = `<div class="yw-qs"><button type="button" class="yw-q${qSel === 'all' ? ' is-on' : ''}" data-mtd-q="${Esc(key)}" data-q="all"><b>All</b><small>Whole year</small></button>${QS.map(chip).join('')}</div>
-        ${qRow ? `<div class="yw-q-info"><span><b>${Esc(qRow.quarter_label || pmQLabel(qRow.quarter))}</b> <span class="muted-line">· ${qRow.quarter === 5 ? 'whole tax year' : Fmt.date(qRow.period_start) + ' – ' + Fmt.date(qRow.period_end)} · due ${Fmt.date(qRow.deadline)}${qRow.hmrc_ref ? ' · HMRC ref ' + Esc(qRow.hmrc_ref) : ''}</span></span>
-          ${filed(qRow) ? `<span><span class="pill pill-green">Filed – locked for the client</span> <button type="button" class="btn btn-secondary btn-sm" data-mtd-unlock="${qRow.id}">Unlock</button></span>`
+        ${qRow ? `<div class="yw-q-info"><span><b>${Esc(qRow.quarter_label || pmQLabel(qRow.quarter))}</b> <span class="muted-line">· ${qRow.quarter === 5 ? 'whole tax year' : Fmt.date(qRow.period_start) + ' – ' + Fmt.date(qRow.period_end)} · due ${Fmt.date(qRow.deadline)}</span>${filed(qRow) ? `<br><span style="font-size:13px;">HMRC submission reference: <b>${qRow.hmrc_ref ? Esc(qRow.hmrc_ref) : '<span class="muted-line">not added</span>'}</b> <button type="button" class="btn-link" data-mtd-ref="${qRow.id}" data-ref="${Esc(qRow.hmrc_ref || '')}">${qRow.hmrc_ref ? 'Change' : 'Add'}</button> <span class="muted-line">· the client sees it in their portal</span></span>` : ''}</span>
+          ${filed(qRow) ? `<span><span class="pill pill-green">Filed ${qRow.submitted_at ? Fmt.date(qRow.submitted_at) + ' ' : ''}– locked for the client</span> <button type="button" class="btn btn-secondary btn-sm" data-mtd-unlock="${qRow.id}">Unlock</button></span>`
             : `<button type="button" class="btn btn-primary btn-sm" data-mtd-file="${qRow.id}" data-label="${Esc(qRow.quarter_label || '')}">Mark ${Esc(pmQLabel(qRow.quarter))} filed</button>`}</div>
           <p class="muted-line" style="font-size:12px;margin:4px 0 0;">Once filed, the client can't add files to it – anything they upload later goes to the next open quarter${qRow.quarter >= 4 ? (qRow.quarter === 4 ? ' (the final declaration)' : ' (Q1 of the next tax year)') : ''}.</p>` : ''}`;
     }
@@ -234,12 +234,20 @@ Object.assign(ClientPortalPanel, {
     // MTD quarters (23 Nov 2026)
     C.querySelectorAll('[data-mtd-q]').forEach(b => b.addEventListener('click', () => { const q = b.dataset.q; this.mtdQ[b.dataset.mtdQ] = q === 'all' ? 'all' : Number(q); this.draw(); }));
     C.querySelectorAll('[data-mtd-file]').forEach(b => b.addEventListener('click', async () => {
-      const ref = prompt(`Mark ${b.dataset.label || 'this quarter'} as filed with HMRC.\nHMRC reference (optional):`, '');
+      const ref = prompt(`Mark ${b.dataset.label || 'this quarter'} as filed with HMRC.\nHMRC submission reference (optional – the client sees it in their portal; you can add it later):`, '');
       if (ref === null) return;
       b.disabled = true;
       const { error } = await sb.rpc('pm_mtd_set', { p_id: b.dataset.mtdFile, p_filed: true, p_ref: ref.trim() || null });
       if (error) { alert('Could not save: ' + error.message); b.disabled = false; return; }
       reload();
+    }));
+    C.querySelectorAll('[data-mtd-ref]').forEach(b => b.addEventListener('click', async () => {
+      const ref = prompt('HMRC submission reference (the client sees it in their portal):', b.dataset.ref || '');
+      if (ref === null) return;
+      const { error } = await sb.rpc('pm_mtd_ref', { p_id: b.dataset.mtdRef, p_ref: ref });
+      if (error) { alert('Could not save: ' + error.message); return; }
+      Object.values(this.mtd || {}).forEach(L => (L || []).forEach(m => { if (m.id === b.dataset.mtdRef) m.hmrc_ref = ref.trim() || null; }));
+      this.draw();
     }));
     C.querySelectorAll('[data-mtd-unlock]').forEach(b => b.addEventListener('click', async () => {
       if (!confirm('Unlock this quarter? The client will be able to add files to it again.')) return;
