@@ -679,3 +679,6 @@ body.viewer-open{overflow:hidden}
 tr.pm-f-us > td:first-child{border-left:4px solid #0E6E6B}
 tr.pm-f-them > td:first-child{border-left:4px solid #D9A400}
 .yw-files li{border-left:4px solid #0E6E6B;padding-left:8px}
+
+.yw-q .yw-q-ref{color:#0E6E6B;font-weight:600}
+.btn-link{background:none;border:0;padding:0;color:#0E6E6B;text-decoration:underline;cursor:pointer;font:inherit;font-size:13px}
