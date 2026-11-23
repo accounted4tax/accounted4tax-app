@@ -35,6 +35,9 @@ const DocGroups = { bank: ['Bank statements', 'all accounts'], income: ['Income'
 
 // ---- Service and year tabs (same structure the client sees in the portal) ----
 // A year key is '2025/26' (tax year) or 'YE 2026-03-31' (company year end).
+// MTD for Income Tax services (not the registration-only service) are worked quarter by quarter
+const pmIsMtd = (name) => /^MTD/i.test(name || '') && !/registration/i.test(name || '');
+const pmQLabel = (q) => q === 5 ? 'Final declaration' : 'Q' + q;
 const pmIsFiling = (name) => /confirmation statement/i.test(name || '');
 // '25/26', '2025-26', '2025/2026' -> '2025/26'; 'YE yyyy-04-05' (an old tax year) -> 'yyyy-1/yy'
 const pmNormTY = (v) => { const m = /^\s*(\d{2}|\d{4})\s*[\/-]\s*(\d{2}|\d{4})\s*$/.exec(v || ''); if (!m) return null; let a = +m[1]; if (a < 100) a += 2000; return `${a}/${String(a + 1).slice(2)}`; };

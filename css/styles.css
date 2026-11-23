@@ -661,3 +661,16 @@ body.viewer-open{overflow:hidden}
 .yw-file-acts .btn,.yw-file-acts select{width:100%;margin:0}
 .yw-col .yw-grp{background:#fff;border:1px solid #F0E3B8;border-radius:8px;padding:8px 10px;margin-bottom:8px}
 .yw-col .empty-state{margin:4px 0}
+
+/* MTD quarters (23 Nov 2026) – same colours as the two file columns: teal = shared by us, amber = client's uploads */
+.yw-qs{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 6px}
+.yw-q{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:118px;padding:8px 10px;border:1px solid #DDE1E7;border-radius:10px;background:#fff;cursor:pointer;font:inherit;text-align:left;color:#14213D}
+.yw-q b{font-size:13px}.yw-q small{font-size:11.5px;color:#4A5568}
+.yw-q.is-on{border-color:#0E6E6B;box-shadow:0 0 0 2px #0E6E6B33}
+.yw-q.is-filed{background:#EEF7EF}.yw-q.is-filed small{color:#1E6B34}
+.yw-q.is-late small{color:#B42318;font-weight:600}
+.yw-qn{display:flex;gap:4px;margin-top:2px}
+.yw-qn i{font-style:normal;font-size:11px;font-weight:700;min-width:20px;text-align:center;border-radius:8px;padding:0 6px;border:1px solid}
+.yw-qn-us{background:#EFF8F7;border-color:#B9DEDB;color:#0E6E6B}
+.yw-qn-them{background:#FFFAEB;border-color:#F3DFA2;color:#8A5A00}
+.yw-q-info{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;padding:8px 10px;border-radius:8px;background:#F6F7F9}

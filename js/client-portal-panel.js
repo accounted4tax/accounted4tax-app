@@ -23,7 +23,7 @@ const ClientPortalPanel = {
     const [acc, req, docs, msgs, aps, svcs] = await Promise.all([
       sb.from('portal_access').select('id,invited_email,created_at,revoked_at,lang,first_signed_in_at,welcomed_at,details_confirmed_at').eq('client_id', clientId).order('created_at', { ascending: false }),
       sb.from('portal_requests').select('*').eq('client_id', clientId).order('created_at', { ascending: false }),
-      sb.from('documents').select('id,created_at,file_name,file_url,uploaded_by,visible_to_client,verified,category,doc_group,doc_type,tax_year,client_service_id').eq('client_id', clientId).like('file_url', 'portal-docs/%').order('created_at', { ascending: false }),
+      sb.from('documents').select('id,created_at,file_name,file_url,uploaded_by,visible_to_client,verified,category,doc_group,doc_type,tax_year,client_service_id,quarter').eq('client_id', clientId).like('file_url', 'portal-docs/%').order('created_at', { ascending: false }),
       sb.from('portal_messages').select('*').eq('client_id', clientId).order('created_at', { ascending: true }).limit(300),
       sb.from('portal_approvals').select('*').eq('client_id', clientId).order('created_at', { ascending: false }),
       sb.from('client_services').select('id,service_id,status,work_status,tax_year,period_end,submitted_at,services_catalogue(name)').eq('client_id', clientId).order('created_at'),
@@ -32,6 +32,12 @@ const ClientPortalPanel = {
     if (err) { containerEl.innerHTML = `<p class="page-error">Could not load the portal: ${Esc(err.error.message)}</p>`; return; }
     this.access = acc.data || []; this.requests = req.data || []; this.docs = docs.data || []; this.msgs = msgs.data || []; this.approvals = aps.data || []; this.services = svcs.data || [];
     this.tabs = pmServiceTabs(this.client, this.services, this.docs);
+    // MTD for Income Tax: the quarters (Q1-Q4 + final declaration) of each tax year, created if missing (23 Nov 2026)
+    this.mtd = {}; this.mtdQ = this.mtdQ || {};
+    await Promise.all(this.tabs.filter(t => pmIsMtd(t.name)).flatMap(t => t.years.filter(y => /^\d{4}\/\d{2}$/.test(y || '')).map(async (y) => {
+      const r = pmLinkRow(t, y); const { data } = await sb.rpc('pm_mtd_year', { p_client: clientId, p_cs: r ? r.id : null, p_tax_year: y });
+      this.mtd[y] = data || [];
+    })));
     this.queue = this.queue || [];
     this.loadedOnce = true;
     try { this.draw(); }
@@ -125,7 +131,14 @@ const ClientPortalPanel = {
       ${fromClient && !d.verified ? ` <button type="button" class="btn btn-secondary btn-sm" data-verify="${d.id}">Mark checked</button>` : ''}
       ${!fromClient ? ` <button type="button" class="btn btn-secondary btn-sm" data-share="${d.id}" data-on="${d.visible_to_client ? '0' : '1'}">${d.visible_to_client ? 'Hide' : 'Share'}</button>` : ''}
       <select class="input" data-move-group="${d.id}" title="Move to another category" style="max-width:170px;display:inline-block;">${Object.entries(DocGroups).map(([k, v]) => `<option value="${k}" ${(d.doc_group || 'other') === k ? 'selected' : ''}>${v[0]}</option>`).join('')}${fromClient ? '' : `<option value="returns" ${d.doc_group === 'returns' ? 'selected' : ''}>Returns and accounts</option><option value="filings" ${d.doc_group === 'filings' ? 'selected' : ''}>Company filings</option>`}</select>
-      <select class="input" data-move-to="${d.id}" title="Move to another service or year" style="max-width:220px;display:inline-block;">${this.moveOpts(d)}</select></td></tr>`;
+      <select class="input" data-move-to="${d.id}" title="Move to another service or year" style="max-width:220px;display:inline-block;">${this.moveOpts(d)}</select>${this.quarterSel(d)}</td></tr>`;
+  },
+
+  // MTD files: which quarter (or the final declaration) they belong to
+  quarterSel(d) {
+    const t = this.tabs.find(x => x.key === this.tabs.ids[d.client_service_id]), ty = pmNormKey(d.tax_year);
+    if (!t || !pmIsMtd(t.name) || !/^\d{4}\/\d{2}$/.test(ty || '')) return '';
+    return ` <select class="input" data-doc-q="${d.id}" data-ty="${Esc(ty)}" title="Quarter" style="max-width:120px;display:inline-block;">${d.quarter ? '' : '<option value="">Quarter?</option>'}${[1, 2, 3, 4, 5].map(q => `<option value="${q}" ${d.quarter === q ? 'selected' : ''}>${pmQLabel(q)}</option>`).join('')}</select>`;
   },
 
   moveOpts(d) {
@@ -154,6 +167,11 @@ const ClientPortalPanel = {
     }));
     C.querySelectorAll('[data-move-group]').forEach(s => s.addEventListener('change', async () => {
       await sb.from('documents').update({ doc_group: s.value, category: s.value === 'bank' ? 'bank_statement' : s.value === 'returns' ? 'tax_return' : 'other' }).eq('id', s.dataset.moveGroup); reload();
+    }));
+    C.querySelectorAll('[data-doc-q]').forEach(s => s.addEventListener('change', async () => {
+      if (!s.value) return;
+      const { error } = await sb.rpc('pm_doc_quarter', { p_doc: s.dataset.docQ, p_tax_year: s.dataset.ty, p_q: Number(s.value) });
+      if (error) alert('Could not move the file: ' + error.message); reload();
     }));
     C.querySelectorAll('[data-move-to]').forEach(s => s.addEventListener('change', async () => {
       const [key, yr] = s.value.split('|'), t = this.tabs.find(x => x.key === key);
@@ -254,7 +272,8 @@ const ClientPortalPanel = {
         if (up.error) { failed.push(file.name); continue; }
         const { data: doc, error } = await sb.from('documents').insert({ client_id: this.clientId, client_service_id: row ? row.id : null,
           category: 'other', doc_group: where === 'filings' ? 'filings' : 'other', tax_year: noYear ? null : (this.sel.yr || null),
-          file_name: file.name, file_url: 'portal-docs/' + path, file_size: file.size, mime_type: file.type || null, uploaded_by: 'practice', verified: true, visible_to_client: true }).select('id').single();
+          file_name: file.name, file_url: 'portal-docs/' + path, file_size: file.size, mime_type: file.type || null, uploaded_by: 'practice', verified: true, visible_to_client: true,
+          quarter: (() => { const q = t && this.mtdQ ? this.mtdQ[`${t.key}|${this.sel.yr || ''}`] : null; return where === 'here' && typeof q === 'number' ? q : null; })() }).select('id').single();
         if (error) { failed.push(file.name); continue; }
         ids.push(doc.id); this.queue = this.queue.filter(f => f !== file);
       }
