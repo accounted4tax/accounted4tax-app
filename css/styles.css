@@ -674,3 +674,8 @@ body.viewer-open{overflow:hidden}
 .yw-qn-us{background:#EFF8F7;border-color:#B9DEDB;color:#0E6E6B}
 .yw-qn-them{background:#FFFAEB;border-color:#F3DFA2;color:#8A5A00}
 .yw-q-info{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;padding:8px 10px;border-radius:8px;background:#F6F7F9}
+
+/* who sent each file (23 Nov 2026): teal = shared by us, amber = client's upload – same colours as the two columns */
+tr.pm-f-us > td:first-child{border-left:4px solid #0E6E6B}
+tr.pm-f-them > td:first-child{border-left:4px solid #D9A400}
+.yw-files li{border-left:4px solid #0E6E6B;padding-left:8px}

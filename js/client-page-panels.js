@@ -68,7 +68,7 @@ const pmServiceTabs = (client, services, docs) => {
   });
   out.forEach(g => {
     const wk = g.rows.filter(pmRowKey);
-    g.kind = wk.length ? (pmRowKey(wk[0]).startsWith('YE ') ? 'co' : 'tax') : (c.client_type === 'ltd' && !/self assessment|personal|payroll|cis|pension/i.test(g.name) ? 'co' : 'tax');
+    g.kind = wk.length ? (pmRowKey(wk[0]).startsWith('YE ') ? 'co' : 'tax') : (c.client_type === 'ltd' && !/self assessment|personal|payroll|cis|pension|mtd/i.test(g.name) ? 'co' : 'tax');
     const ys = g.rows.map(pmRowKey).filter(Boolean), cur = pmCurrentKey(g.kind, c, g.rows);
     if (cur && !ys.includes(cur)) ys.push(cur);
     // ongoing services without a year (monthly payroll, VAT returns, CIS returns, bookkeeping): a card for every year
