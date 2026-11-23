@@ -42,9 +42,10 @@ const pmNormKey = (v) => !v ? null : (pmNormTY(v) || (/^YE \d{4}-04-0[56]$/.test
 const pmRowKey = (r) => { const ty = pmNormTY(r.tax_year); if (ty) return ty; if (!r.period_end) return null; const pe = String(r.period_end).slice(0, 10); return /-04-0[56]$/.test(pe) ? `${+pe.slice(0, 4) - 1}/${pe.slice(2, 4)}` : 'YE ' + pe; };
 const pmKeyEnd = (k) => { let m = /^YE (\d{4}-\d{2}-\d{2})$/.exec(k || ''); if (m) return new Date(m[1] + 'T12:00:00'); m = /^(\d{4})\/\d{2}$/.exec(k || ''); return m ? new Date(+m[1] + 1, 3, 5) : new Date(0); };
 const pmKeyLabel = (k) => !k ? 'General' : (String(k).startsWith('YE ') ? 'YE ' + Fmt.date(String(k).slice(3)) : k);
-const pmCurrentKey = (kind, client, rows) => {
-  const today = new Date().toISOString().slice(0, 10);
-  if (kind === 'tax') { const n = new Date(); let y = n.getFullYear(); if (n < new Date(y, 3, 6)) y--; return `${y}/${String(y + 1).slice(2)}`; }
+// the year a date falls in (today by default): '2026/27' for a tax year, 'YE yyyy-mm-dd' for a company year
+const pmCurrentKey = (kind, client, rows, on) => {
+  const today = on ? String(on).slice(0, 10) : new Date().toISOString().slice(0, 10);
+  if (kind === 'tax') { const n = new Date(today + 'T12:00:00'); let y = n.getFullYear(); if (n < new Date(y, 3, 6)) y--; return `${y}/${String(y + 1).slice(2)}`; }
   const base = (client && client.year_end_date) || rows.map(r => r.period_end).filter(Boolean).sort().pop();
   if (!base) return null;
   const d = new Date(String(base).slice(0, 10) + 'T12:00:00'); let g = 0;
@@ -64,9 +65,22 @@ const pmServiceTabs = (client, services, docs) => {
   });
   out.forEach(g => {
     const wk = g.rows.filter(pmRowKey);
-    g.kind = wk.length ? (pmRowKey(wk[0]).startsWith('YE ') ? 'co' : 'tax') : (c.client_type === 'ltd' && !/self assessment|personal/i.test(g.name) ? 'co' : 'tax');
+    g.kind = wk.length ? (pmRowKey(wk[0]).startsWith('YE ') ? 'co' : 'tax') : (c.client_type === 'ltd' && !/self assessment|personal|payroll|cis|pension/i.test(g.name) ? 'co' : 'tax');
     const ys = g.rows.map(pmRowKey).filter(Boolean), cur = pmCurrentKey(g.kind, c, g.rows);
     if (cur && !ys.includes(cur)) ys.push(cur);
+    // ongoing services without a year (monthly payroll, VAT returns, CIS returns, bookkeeping): a card for every year
+    // from when the service started to today (23 Nov 2026)
+    const ongoing = g.rows.filter(r => !pmRowKey(r));
+    g.ongoing = !!ongoing.length;
+    if (ongoing.length && cur) {
+      const start = ongoing.map(r => String(r.created_at || '').slice(0, 10)).filter(Boolean).sort()[0];
+      let k = start ? pmCurrentKey(g.kind, c, g.rows, start) : null;
+      for (let i = 0; k && k !== cur && i < 30; i++) {
+        if (!ys.includes(k)) ys.push(k);
+        const e = pmKeyEnd(k); e.setDate(e.getDate() + 1);
+        k = pmCurrentKey(g.kind, c, g.rows, `${e.getFullYear()}-${String(e.getMonth() + 1).padStart(2, '0')}-${String(e.getDate()).padStart(2, '0')}`);
+      }
+    }
     if (!ys.length) ys.push(null);
     g.current = cur;
     g.years = [...new Set(ys)].sort((a, b) => pmKeyEnd(b) - pmKeyEnd(a));
@@ -83,6 +97,8 @@ const pmServiceTabs = (client, services, docs) => {
 };
 // a service with no tax year / period (monthly payroll, VAT returns, bookkeeping…) is ongoing: it counts for every year (22 Nov 2026)
 const pmRowFor = (g, y) => g.rows.find(r => pmRowKey(r) === y) || g.rows.find(r => !pmRowKey(r)) || null;
+// for an ongoing service: the year an upload or request belongs to (its tax year, or the year it was made in)
+const pmItemKey = (g, client, x) => pmNormKey(x.tax_year) || pmCurrentKey(g.kind, client, g.rows, x.created_at || undefined);
 const pmLinkRow = (g, y) => pmRowFor(g, y) || [...g.rows].sort((a, b) => pmKeyEnd(pmRowKey(b)) - pmKeyEnd(pmRowKey(a)))[0] || null;
 
 // On-screen preview (js/viewer.js + PDF.js). fullPath is "<bucket>/<path>".
