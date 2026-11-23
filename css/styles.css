@@ -682,3 +682,11 @@ tr.pm-f-them > td:first-child{border-left:4px solid #D9A400}
 
 .yw-q .yw-q-ref{color:#0E6E6B;font-weight:600}
 .btn-link{background:none;border:0;padding:0;color:#0E6E6B;text-decoration:underline;cursor:pointer;font:inherit;font-size:13px}
+
+/* 23 Nov 2026: collapsible service cards */
+.yw-h .yw-tog{background:none;border:1px solid var(--line,#E3E6EC);border-radius:6px;width:28px;height:28px;cursor:pointer;font-size:14px;line-height:1;color:#14213D;flex:0 0 28px;margin-right:4px}
+.yw-h .yw-h3{cursor:pointer}
+.yw-mini{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:8px 16px 12px;font-size:13px}
+.yw-tools{display:flex;justify-content:flex-end;gap:6px;font-size:13px;margin:0 0 6px}
+.yw-ht{display:flex;align-items:center;gap:6px;min-width:0}
+.yw-ht h3{margin:0}
