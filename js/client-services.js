@@ -290,16 +290,62 @@ const ClientServicesPanel = {
     });
   },
 
-  // 23 Nov 2026: pause (e.g. the client has not paid) – hidden from the portal until resumed; nothing is deleted
+  // 23 Nov 2026: pause (e.g. the client has not paid) – hidden from the portal until resumed; nothing is deleted.
+  // 24 Nov 2026: also pauses the Stripe monthly payments behind the service (anything unpaid is cancelled);
+  // Resume can take the payments missed while paused from the saved card.
   async handlePause(id, on) {
     const cs = this.assigned.find(a => a.id === id), name = cs && cs.services_catalogue ? cs.services_catalogue.name : 'this service';
-    if (!confirm(on
-      ? `Are you sure you want to pause "${name}"?\n\nThe client will no longer see it in their portal (its files and requests are hidden too). Nothing is deleted – you can resume it at any time.`
-      : `Resume "${name}"?\n\nThe client will see it in their portal again.`)) return;
-    const { error } = await sb.from('client_services').update({ status: on ? 'paused' : 'active' }).eq('id', id);
-    if (error) { alert(`Could not save: ${error.message}`); return; }
-    this.render(this.clientId, this.containerEl, this.opts);
-    if (this.opts && typeof this.opts.onChange === 'function') this.opts.onChange();
+    const money = (p) => '£' + (Number(p || 0) / 100).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `<div class="modal"><h3>${on ? 'Pause' : 'Resume'} “${Esc(name)}”?</h3><div id="pb-body"><p class="muted-line">Checking the monthly payments in Stripe…</p></div>
+      <div class="modal-actions"><button type="button" class="btn btn-secondary" id="pb-cancel">Cancel</button><button type="button" class="btn btn-primary" id="pb-go" disabled>${on ? 'Yes, pause' : 'Yes, resume'}</button></div></div>`;
+    document.body.appendChild(overlay);
+    const close = () => overlay.remove();
+    overlay.querySelector('#pb-cancel').onclick = close;
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+    const call = async (body) => {
+      const res = await sb.functions.invoke('pm-billing', { body: { cs_id: id, ...body } });
+      if (res.error) { let m = res.error.message; try { const j = await res.error.context.json(); m = (j.error && j.error.message) || m; } catch (_) {} throw new Error(m); }
+      return res.data;
+    };
+    let info = { plans: [] };
+    try { info = await call({ action: 'info' }); } catch (e) { overlay.querySelector('#pb-body').innerHTML = `<p class="page-error">Could not check Stripe: ${Esc(e.message)}</p><p class="muted-line">You can still ${on ? 'pause' : 'resume'} the service in the portal only.</p>`; }
+    const plans = info.plans || [];
+    const body = overlay.querySelector('#pb-body');
+    if (!body.querySelector('.page-error')) {
+      const owed = plans.reduce((a, p) => a + p.owed.reduce((x, i) => x + i.amount, 0), 0);
+      const missed = plans.reduce((a, p) => a + p.missed.reduce((x, i) => x + i.amount, 0), 0), nMissed = plans.reduce((a, p) => a + p.missed.length, 0);
+      const shared = [...new Set(plans.flatMap(p => p.shared || []))];
+      const planLine = plans.length ? `<p>Monthly card payments: <b>£${plans.map(p => Number(p.monthly_amount || 0).toFixed(2)).join(' + £')} a month</b> (quote ${plans.map(p => Esc(p.quote_number || '')).join(', ')}).</p>` : '<p class="muted-line">No monthly card payments in Stripe for this service – only the portal changes.</p>';
+      body.innerHTML = on
+        ? `${planLine}<ul style="margin:6px 0 10px 18px;padding:0;font-size:14px;line-height:1.5">
+            <li>The client no longer sees this service in their portal (files, requests and MTD quarters hidden). Nothing is deleted.</li>
+            ${plans.length ? `<li><b>Stripe stops collecting.</b> No payment is taken while paused.</li>` : ''}
+            ${owed ? `<li><b>${money(owed)} unpaid now will be cancelled</b> (you can take it again when you resume).</li>` : ''}
+            ${shared.length ? `<li style="color:#B3412C"><b>Same monthly payment also covers:</b> ${shared.map(Esc).join(', ')} – their payments pause too.</li>` : ''}</ul>`
+        : `${planLine}<ul style="margin:6px 0 10px 18px;padding:0;font-size:14px;line-height:1.5">
+            <li>The client sees the service in their portal again.</li>
+            ${plans.length ? '<li>Stripe collects again from the next payment date.</li>' : ''}</ul>
+            ${missed ? `<label style="display:flex;gap:8px;align-items:flex-start;font-size:14px;background:#FFF7E0;border:1px solid #E0B84A;border-radius:8px;padding:10px"><input type="checkbox" id="pb-missed" style="margin-top:3px"><span><b>Take the ${nMissed} payment${nMissed === 1 ? '' : 's'} missed while paused – ${money(missed)}</b> – from the saved card now (the client stays). Leave unticked to let them go.</span></label>` : ''}`;
+    }
+    const go = overlay.querySelector('#pb-go'); go.disabled = false;
+    go.onclick = async () => {
+      go.disabled = true; go.textContent = on ? 'Pausing…' : 'Resuming…';
+      try {
+        if (plans.length || !body.querySelector('.page-error')) {
+          const r = await call(on ? { action: 'pause' } : { action: 'resume', take_missed: !!(overlay.querySelector('#pb-missed') || {}).checked });
+          if (r.charged && !r.charged.paid) alert(`Resumed. The missed payments (${money(r.charged.amount)}) could not be taken from the card${r.charged.why ? ': ' + r.charged.why : ''}.\nSend the client this payment link: ${r.charged.pay_url || 'see Stripe'}`);
+          else if (r.charged && r.charged.paid) alert(`Resumed. ${money(r.charged.amount)} missed while paused has been taken from the saved card.`);
+        } else {
+          const { error } = await sb.from('client_services').update({ status: on ? 'paused' : 'active' }).eq('id', id);
+          if (error) throw error;
+        }
+        close();
+        this.render(this.clientId, this.containerEl, this.opts);
+        if (this.opts && typeof this.opts.onChange === 'function') this.opts.onChange();
+      } catch (e) { go.disabled = false; go.textContent = on ? 'Yes, pause' : 'Yes, resume'; alert(`Could not ${on ? 'pause' : 'resume'}: ${e.message}`); }
+    };
   },
 
   async handleRemove(id) {
