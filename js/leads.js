@@ -86,7 +86,7 @@ const LeadLetters = {
 <header class="lh"><div><div class="brand">Accounted<i>4</i>Tax</div><div class="tag">Contabili licențiați AAT · în română și engleză</div></div>
 <div class="contact">www.accounted4tax.co.uk<br>info@accounted4tax.co.uk<br>Tel. / WhatsApp 07563 811938</div></header>
 <div class="window"><div class="ret">Accounted4Tax Ltd, 128 City Road, London EC1V 2NX</div>
-<div class="to${addr.some(l => l.length > 38) ? ' to-long' : ''}">În atenția: ${Esc(n.full)}<br>Director<br><b>${Esc(r.company_name)}</b><br>${addr.map(Esc).join('<br>')}</div></div>
+<div class="to${addr.some(l => l.length > 38) ? ' to-long' : ''}"><b>${Esc(r.company_name)}</b><br>${Esc(n.full)}, Director<br>${addr.map(Esc).join('<br>')}</div></div>
 <div class="date">${this.roDate(today)}</div>
 <div class="body">
 <h1>Felicitări pentru înființarea ${Esc(r.company_name)}!</h1>
