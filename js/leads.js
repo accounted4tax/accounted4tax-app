@@ -13,7 +13,7 @@ const LEAD_GROUPS = [
   { key: 'other', label: 'Everyone else', g: 'o' },
   { key: 'formation', label: 'Formation-agent addresses', g: null },
 ];
-const RO_MONTHS = ['ianuarie', 'februarie', 'martie', 'aprilie', 'mai', 'iunie', 'iulie', 'august', 'septembrie', 'octombrie', 'noiembrie', 'decembrie'];
+const RO_MONTHS = ['Ianuarie', 'Februarie', 'Martie', 'Aprilie', 'Mai', 'Iunie', 'Iulie', 'August', 'Septembrie', 'Octombrie', 'Noiembrie', 'Decembrie'];
 
 const LeadLetters = {
   // "POPESCU, Ion Marian" -> { first: "Ion", full: "Ion Marian Popescu" }
@@ -92,8 +92,7 @@ const LeadLetters = {
     return `<section class="letter">
 <header class="lh"><div><div class="brand">Accounted<i>4</i>Tax</div><div class="tag">Contabili licențiați AAT · în română și engleză</div></div>
 <div class="contact">www.accounted4tax.co.uk<br>info@accounted4tax.co.uk<br>Tel. / WhatsApp 07563 811938</div></header>
-<div class="window"><div class="ret">Accounted4Tax Ltd, 128 City Road, London EC1V 2NX</div>
-<div class="to${addr.some(l => l.length > 38) ? ' to-long' : ''}"><b>${Esc(r.company_name)}</b><br>${Esc(n.full)}, Director<br>${addr.map(Esc).join('<br>')}</div></div>
+<div class="window"><div class="to${addr.some(l => l.length > 38) ? ' to-long' : ''}"><b>${Esc(r.company_name)}</b><br>${Esc(n.full)}, Director<br>${addr.map(Esc).join('<br>')}</div></div>
 <div class="date">${this.roDate(today)}</div>
 <div class="body">
 <h1>Felicitări pentru înființarea ${Esc(r.company_name)}!</h1>
@@ -118,7 +117,7 @@ body{font-family:Inter,Arial,Helvetica,sans-serif;color:#14213D;-webkit-print-co
 .lh{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #0E6E6B;padding-bottom:3mm}
 .brand{font-family:Fraunces,Georgia,serif;font-size:21pt;font-weight:600}.brand i{color:#0E6E6B;font-style:normal}
 .tag{font-size:8.5pt;color:#4A5568}.contact{font-size:8.5pt;text-align:right;color:#3E4A5C;line-height:1.5}
-.window{position:absolute;left:22mm;top:45mm;width:92mm;height:36mm}
+.window{position:absolute;left:22mm;top:48mm;width:92mm;height:33mm}
 .ret{font-size:6.5pt;color:#4A5568;border-bottom:.3mm solid #C7CDD8;padding-bottom:1mm;margin-bottom:2mm}
 .to{font-size:10pt;line-height:1.35}.to-long{font-size:9pt;line-height:1.25}
 .date{position:absolute;right:18mm;top:50mm;font-size:9.5pt}
