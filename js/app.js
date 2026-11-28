@@ -3,6 +3,7 @@
 const NAV_ITEMS = [
   { path: '/dashboard', label: 'Dashboard', icon: 'grid' },
   { path: '/clients', label: 'Clients', icon: 'users' },
+  { path: '/leads', label: 'Leads', icon: 'send' },
   { path: '/services', label: 'Services', icon: 'layers' },
   { path: '/tasks', label: 'Tasks', icon: 'check-square' },
   { path: '/deadlines', label: 'Deadlines', icon: 'calendar' },
@@ -13,6 +14,7 @@ const NAV_ITEMS = [
 ];
 
 const ICONS = {
+  send: '<line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>',
   grid: '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>',
   users: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
   layers: '<polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>',
