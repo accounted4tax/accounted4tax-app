@@ -27,7 +27,10 @@ const LeadLetters = {
   },
   addressLines(single) {
     const drop = /^(england|wales|scotland|northern ireland|united kingdom|uk)$/i;
-    return String(single || '').split(',').map(x => x.trim()).filter(x => x && !drop.test(x));
+    const lines = String(single || '').split(',').map(x => x.trim()).filter(x => x && !drop.test(x));
+    // at most 4 lines so the address stays inside the envelope window: join the first lines ("Flat 4, 12 Example Road")
+    while (lines.length > 4) lines.splice(0, 2, lines[0] + ', ' + lines[1]);
+    return lines;
   },
   // add months, clamping to the last day of the month (31 Jan + 1 month = 28/29 Feb)
   addMonths(iso, months, days = 0) {
@@ -83,7 +86,7 @@ const LeadLetters = {
 <header class="lh"><div><div class="brand">Accounted<i>4</i>Tax</div><div class="tag">Contabili licențiați AAT · în română și engleză</div></div>
 <div class="contact">www.accounted4tax.co.uk<br>info@accounted4tax.co.uk<br>Tel. / WhatsApp 07563 811938</div></header>
 <div class="window"><div class="ret">Accounted4Tax Ltd, 128 City Road, London EC1V 2NX</div>
-<div class="to">În atenția: ${Esc(n.full)}<br><b>${Esc(r.company_name)}</b><br>${addr.map(Esc).join('<br>')}</div></div>
+<div class="to${addr.some(l => l.length > 38) ? ' to-long' : ''}">În atenția: ${Esc(n.full)}<br>Director<br><b>${Esc(r.company_name)}</b><br>${addr.map(Esc).join('<br>')}</div></div>
 <div class="date">${this.roDate(today)}</div>
 <div class="body">
 <h1>Felicitări pentru înființarea ${Esc(r.company_name)}!</h1>
@@ -110,7 +113,7 @@ body{font-family:Inter,Arial,Helvetica,sans-serif;color:#14213D;-webkit-print-co
 .tag{font-size:8.5pt;color:#4A5568}.contact{font-size:8.5pt;text-align:right;color:#3E4A5C;line-height:1.5}
 .window{position:absolute;left:22mm;top:45mm;width:92mm;height:36mm}
 .ret{font-size:6.5pt;color:#4A5568;border-bottom:.3mm solid #C7CDD8;padding-bottom:1mm;margin-bottom:2mm}
-.to{font-size:10pt;line-height:1.35}
+.to{font-size:10pt;line-height:1.35}.to-long{font-size:9pt;line-height:1.25}
 .date{position:absolute;right:18mm;top:50mm;font-size:9.5pt}
 .body{position:absolute;left:18mm;right:18mm;top:86mm}
 h1{font-family:Fraunces,Georgia,serif;font-size:15pt;font-weight:600;margin:0 0 2.5mm;line-height:1.2}
