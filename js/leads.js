@@ -72,6 +72,13 @@ const LeadLetters = {
       ] };
   },
 
+  // "Who we are" paragraph: local (in the service area) or the rest of the UK
+  whoWeAre(local) {
+    return local
+      ? '<p>Suntem <b>Accounted4Tax</b>, o firmă de contabilitate licențiată AAT din <b>Hatfield, Hertfordshire, aproape de dumneavoastră</b>. Lucrăm în română și în engleză, online, la telefon, pe WhatsApp sau pe email, iar când este nevoie putem trece și pe la sediul firmei. Vă invităm la <b>o discuție gratuită de 20 de minute, fără nicio obligație</b>.</p>'
+      : '<p>Suntem <b>Accounted4Tax</b>, o firmă de contabilitate licențiată AAT. Lucrăm în română și în engleză cu firme mici <b>din toată Marea Britanie, complet online</b>: întâlniri video, telefon, WhatsApp, email și un portal securizat pentru documente, fără drumuri la birou. Vă invităm la <b>o discuție gratuită de 20 de minute, fără nicio obligație</b>.</p>';
+  },
+
   letter(r, today) {
     const dirs = r.romanian_directors || [];
     const n = this.name(dirs[0] && dirs[0].name);
@@ -92,14 +99,14 @@ const LeadLetters = {
 <h1>Felicitări pentru înființarea ${Esc(r.company_name)}!</h1>
 <p>Bună ziua, ${Esc(n.full)},</p>
 <p>Primele luni ale unei firme noi sunt cele în care se iau deciziile care contează cel mai mult la taxe: cum vă plătiți ca director, ce înregistrări vă trebuie la HMRC și ce termene aveți la Companies House. O decizie bună acum vă poate economisi bani ani la rând; o greșeală poate aduce amenzi.</p>
-<p>Suntem <b>Accounted4Tax</b>, o firmă de contabilitate licențiată AAT. Lucrăm în română și în engleză cu firme mici din toată Marea Britanie și vă invităm la <b>o discuție gratuită de 20 de minute, fără nicio obligație</b>.</p>
+${this.whoWeAre(!!r.in_area)}
 <div class="box"><div class="box-t">${box.title}</div><ul>${box.items.map(i => `<li>${i}</li>`).join('')}</ul></div>
 <div class="two">
 <div><div class="sub">Ce mai putem discuta</div><ul class="ticks"><li>Cum să vă plătiți eficient (salariu și dividende)</li><li>Ce înregistrări vă trebuie</li><li>TVA sau fără TVA</li><li>O strategie fiscală eficientă</li><li>Orice altă întrebare aveți</li></ul></div>
 <div><div class="sub">Primele termene ale firmei</div><ul class="dl"><li>Confirmation statement: <b>până la ${cs}</b></li><li>Primele conturi anuale la Companies House: <b>până la ${acc}</b></li><li>Înregistrarea pentru Corporation Tax: <b>în 3 luni</b> de la începerea activității</li></ul></div>
 </div>
 <div class="cta"><div class="cta-t"><b>Programați discuția gratuită</b><br>Scanați codul QR sau intrați pe <b>accounted4tax.co.uk/discutie</b> și scrieți codul <span class="code">${Esc(r.letter_code)}</span>. Alegeți ziua, ora și subiectele, iar noi vă sunăm.<br>Preferați WhatsApp? Scrieți-ne la <b>07563 811938</b>.</div><div class="qr">${this.qrSvg(url)}</div></div>
-<p class="sign">Cu stimă,<br><b>Echipa Accounted4Tax</b></p>
+<p class="sign">Cu stimă, <b>Echipa Accounted4Tax</b></p>
 </div>
 <footer class="foot">Datele firmei provin din registrul public Companies House. Dacă nu doriți să mai primiți scrisori de la noi, apăsați „Nu doresc să mai primesc scrisori” pe pagina de mai sus sau trimiteți codul ${Esc(r.letter_code)} la info@accounted4tax.co.uk. Cum folosim datele: www.accounted4tax.co.uk/privacy.<br>Accounted4Tax Ltd, înregistrată în Anglia și Țara Galilor, nr. 16438537. Licensed and supervised by the AAT; details on request. ICO: ZC296363.</footer>
 </section>`;
@@ -116,7 +123,7 @@ body{font-family:Inter,Arial,Helvetica,sans-serif;color:#14213D;-webkit-print-co
 .to{font-size:10pt;line-height:1.35}.to-long{font-size:9pt;line-height:1.25}
 .date{position:absolute;right:18mm;top:50mm;font-size:9.5pt}
 .body{position:absolute;left:18mm;right:18mm;top:86mm}
-h1{font-family:Fraunces,Georgia,serif;font-size:15pt;font-weight:600;margin:0 0 2.5mm;line-height:1.2}
+h1{font-family:Fraunces,Georgia,serif;font-size:14pt;font-weight:600;margin:0 0 2.5mm;line-height:1.2}
 p{margin:0 0 2.2mm}
 .box{background:#F2F9F8;border-left:1.2mm solid #0E6E6B;border-radius:2mm;padding:2.5mm 4mm;margin:2.5mm 0}
 .box-t{font-weight:700;font-size:10.5pt;margin-bottom:1mm}.box ul{margin:0;padding-left:4.5mm}.box li{margin:0 0 1mm}
@@ -153,16 +160,19 @@ const LeadsPage = {
   rows: [],
   group: 'construction',
   status: 'to_print',
+  area: 'in',
   selected: new Set(),
 
   async render() {
     const el = App.content();
     el.innerHTML = `<div class="page-loading">Loading leads…</div>`;
     const { data, error } = await sb.from('ch_report_rows')
-      .select('company_number,company_name,date_of_creation,sic_codes,registered_office,romanian_directors,letter_code,letter_group,printed_at,responded_at,opted_out_at,client_id,ro_formation,dir_formation,status')
+      .select('company_number,company_name,date_of_creation,sic_codes,registered_office,romanian_directors,letter_code,letter_group,printed_at,responded_at,opted_out_at,client_id,ro_formation,dir_formation,status,miles,in_area,loc_postcode')
       .eq('status', 'checked').order('date_of_creation', { ascending: false }).limit(3000);
     if (error) { el.innerHTML = `<div class="page-error">Could not load leads: ${Esc(error.message)}</div>`; return; }
-    this.rows = (data || []).map(r => ({ ...r, formation: !!(r.ro_formation || r.dir_formation) }));
+    this.rows = (data || []).map(r => ({ ...r, formation: !!(r.ro_formation || r.dir_formation), miles: r.miles == null ? null : Number(r.miles) }));
+    // nearest to Hatfield first; no known location last
+    this.rows.sort((a, b) => (a.miles == null) - (b.miles == null) || (a.miles || 0) - (b.miles || 0) || String(a.company_name).localeCompare(b.company_name));
     this.selected = new Set();
     this.renderPage();
   },
@@ -177,17 +187,25 @@ const LeadsPage = {
     if (r.printed_at) return 'printed';
     return 'to_print';
   },
+  inArea(r) {
+    return this.area === 'all' || (this.area === 'in' ? !!r.in_area : !r.in_area);
+  },
   visible() {
-    return this.rows.filter(r => this.inGroup(r) && (this.status === 'all' || this.statusOf(r) === this.status));
+    return this.rows.filter(r => this.inGroup(r) && this.inArea(r) && (this.status === 'all' || this.statusOf(r) === this.status));
   },
 
   renderPage() {
     const el = App.content();
-    const count = (g) => this.rows.filter(r => (g === 'formation' ? r.formation : !r.formation && (r.letter_group || 'other') === g) && this.statusOf(r) === 'to_print').length;
+    const count = (g) => this.rows.filter(r => (g === 'formation' ? r.formation : !r.formation && (r.letter_group || 'other') === g) && this.inArea(r) && this.statusOf(r) === 'to_print').length;
     el.innerHTML = `
       <p style="margin:0 0 14px;color:#4A5568;font-size:14px">New companies with a Romanian director, from Companies House. Print the letters for each group, post them, then mark them as printed. Replies from the QR form appear here and as new clients.</p>
+      <div class="page-toolbar" style="flex-wrap:wrap;gap:8px;align-items:center">
+        <span style="font-size:13px;font-weight:600;color:#4A5568">Area:</span>
+        ${[['in', 'My service area'], ['out', 'Outside my area'], ['all', 'Everywhere']].map(([v, l]) => `<button class="btn btn-sm ${this.area === v ? 'btn-primary' : 'btn-secondary'}" style="margin-left:0" data-area="${v}">${l}</button>`).join('')}
+        <span style="font-size:12px;color:#4A5568">Within 15 miles of Hatfield, plus Dunstable (LU5, LU6) and Letchworth, Hitchin, Baldock, Arlesey (SG5, SG6, SG7, SG15)</span>
+      </div>
       <div class="page-toolbar" style="flex-wrap:wrap;gap:8px">
-        ${LEAD_GROUPS.map(g => `<button class="btn ${this.group === g.key ? 'btn-primary' : 'btn-secondary'}" data-group="${g.key}">${g.label} <span class="pill pill-grey" style="margin-left:6px">${count(g.key)}</span></button>`).join('')}
+        ${LEAD_GROUPS.map(g => `<button class="btn ${this.group === g.key ? 'btn-primary' : 'btn-secondary'}" style="margin-left:0" data-group="${g.key}">${g.label} <span class="pill pill-grey" style="margin-left:6px">${count(g.key)}</span></button>`).join('')}
       </div>
       <div class="page-toolbar" style="flex-wrap:wrap;gap:8px">
         <select id="lead-status" class="input input-select">
@@ -198,6 +216,7 @@ const LeadsPage = {
       </div>
       ${this.group === 'formation' ? '<p style="margin:0 0 12px;font-size:13px;color:#8A5A00;background:#FFF6E5;padding:10px 12px;border-radius:8px">These companies use a formation-agent or virtual-office address, so a letter may be forwarded late, charged to the director, or not passed on. Print them only if you want to.</p>' : ''}
       <div id="leads-table"></div>`;
+    el.querySelectorAll('[data-area]').forEach(b => b.addEventListener('click', () => { this.area = b.dataset.area; this.selected = new Set(); this.renderPage(); }));
     el.querySelectorAll('[data-group]').forEach(b => b.addEventListener('click', () => { this.group = b.dataset.group; this.selected = new Set(); this.renderPage(); }));
     document.getElementById('lead-status').addEventListener('change', (e) => { this.status = e.target.value; this.selected = new Set(); this.renderPage(); });
     document.getElementById('lead-print').addEventListener('click', () => this.doPrint());
@@ -224,9 +243,10 @@ const LeadsPage = {
     if (!rows.length) { wrap.innerHTML = '<div class="empty-state" style="padding:24px;color:#4A5568">Nothing here.</div>'; this.updateButtons(); return; }
     const pill = (s) => ({ to_print: '<span class="pill pill-amber">To print</span>', printed: '<span class="pill pill-grey">Printed</span>', replied: '<span class="pill pill-green">Replied</span>', opted_out: '<span class="pill pill-red">Opted out</span>' }[s]);
     wrap.innerHTML = `<table class="data-table"><thead><tr>
-      <th style="width:32px"><input type="checkbox" id="lead-all" aria-label="Select all"></th><th>Company</th><th>Romanian director(s)</th><th>SIC</th><th>Formed</th><th>Registered office</th><th>Code</th><th>Status</th></tr></thead><tbody>
+      <th style="width:32px"><input type="checkbox" id="lead-all" aria-label="Select all"></th><th>Miles</th><th>Company</th><th>Romanian director(s)</th><th>SIC</th><th>Formed</th><th>Registered office</th><th>Code</th><th>Status</th></tr></thead><tbody>
       ${rows.map(r => `<tr>
         <td><input type="checkbox" class="lead-cb" value="${Esc(r.company_number)}" ${this.selected.has(r.company_number) ? 'checked' : ''}></td>
+        <td style="white-space:nowrap">${r.miles == null ? '<span style="color:#8A94A6">—</span>' : r.miles.toFixed(1)}${r.in_area ? '<div><span class="pill pill-green">In area</span></div>' : ''}</td>
         <td><a href="https://find-and-update.company-information.service.gov.uk/company/${encodeURIComponent(r.company_number)}" target="_blank" rel="noopener">${Esc(r.company_name)}</a><div style="font-size:12px;color:#4A5568">${Esc(r.company_number)}</div></td>
         <td>${(r.romanian_directors || []).map(d => Esc(LeadLetters.name(d.name).full)).join('<br>')}</td>
         <td style="font-size:12px">${(r.sic_codes || []).map(Esc).join(', ')}</td>
